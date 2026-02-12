@@ -1,0 +1,1591 @@
+/** resource production is fixed so it doesnt create unlmited cards,
+* it deducts a card from bank when giving to players
+* it first computes total demand for resources and checks bank.canProvideAll() to avoid partial card distribution.
+* dice changed ad implemneted as talked about in class.
+* reduced coupling.
+*/
+
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.util.*;
+
+/**
+ * Demonstrator class (required by the assignment):
+ * - Contains ONE static void main method.
+ * - Loads configuration (turns/rounds).
+ * - Runs one demonstrative simulation.
+ *
+ * Output format:
+ *   [RoundNumber] / [PlayerID]: [Action]
+ *
+ * Notes:
+ * - Trading, harbours, development cards, robber are ignored per assignment.
+ * - Rolling a 7: no production, continue.
+ */
+public class Demonstrator {
+
+    public static void main(String[] args) {
+        // ---------------------------
+        // 1) Read configuration file
+        // ---------------------------
+        int maxRounds = 25; // default if config not provided
+        if (args.length >= 1) {
+            Integer parsed = ConfigReader.readTurnsFromConfig(args[0]);
+            if (parsed != null) {
+                maxRounds = parsed;
+            }
+        }
+
+        // ---------------------------
+        // 2) Create game components
+        // ---------------------------
+        long seed = 42L; // deterministic demo runs for debugging/testing
+        Random randomizer = new Random(seed);
+
+        Board board = new Board();                // creates a valid map (tiles + nodes + edges)
+        Resources bank = Resources.createDefaultBank(); // finite bank (95 cards total in base game)
+
+        // Dice redesign:
+        // - RegularDice implements Dice
+        // - MultiDice implements Dice and sums contained dice rolls
+        Dice d1 = new RegularDice(6, randomizer);
+        Dice d2 = new RegularDice(6, randomizer);
+        MultiDice twoDice = new MultiDice();
+        twoDice.addDice(d1);
+        twoDice.addDice(d2);
+
+        ResourceProduction production = new ResourceProduction(twoDice, bank, board);
+
+        Game game = new Game(board, bank, production, maxRounds, randomizer);
+
+        // ---------------------------
+        // 3) Run the simulation
+        // ---------------------------
+        game.start();
+    }
+}
+
+/* =========================================================
+ * ======================= CONFIG ==========================
+ * ========================================================= */
+
+/**
+ * Reads config file:
+ * Expected format:
+ *   turns: int
+ * Example:
+ *   turns: 100
+ */
+final class ConfigReader {
+    private ConfigReader() {}
+
+    public static Integer readTurnsFromConfig(String path) {
+        try (BufferedReader br = new BufferedReader(new FileReader(path))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                line = line.trim();
+                // allow "turns: 123" (case-insensitive on key)
+                if (line.toLowerCase(Locale.ROOT).startsWith("turns:")) {
+                    String rhs = line.substring("turns:".length()).trim();
+                    int value = Integer.parseInt(rhs);
+                    if (value < 1 || value > 8192) {
+                        throw new IllegalArgumentException("turns must be in [1..8192]. Found: " + value);
+                    }
+                    return value;
+                }
+            }
+        } catch (IOException | NumberFormatException ex) {
+            System.out.println("Config read failed (using default rounds). Reason: " + ex.getMessage());
+        }
+        return null;
+    }
+}
+
+/* =========================================================
+ * ======================= ENUMS ===========================
+ * ========================================================= */
+
+/**
+ * Player ID is a color enum (as you requested).
+ */
+enum Color {
+    ORANGE, WHITE, RED, BLUE
+}
+
+/**
+ * Resource enum (names used everywhere via switches/maps).
+ */
+enum Resource {
+    WOOL, BRICK, ORE, LUMBER, GRAIN
+}
+
+/**
+ * Terrain enum for tiles.
+ * Desert produces no resources.
+ */
+enum Terrain {
+    MOUNTAIN, FOREST, HILLS, FIELDS, PASTURE, DESERT
+}
+
+/* =========================================================
+ * ======================== DICE ===========================
+ * ========================================================= */
+
+/**
+ * Dice interface (type/contract):
+ * - Allows swapping implementations without changing clients (e.g., ResourceProduction).
+ */
+interface Dice {
+    /**
+     * @return result of a roll (meaning depends on implementation)
+     */
+    int roll();
+}
+
+/**
+ * RegularDice: a single die with N sides.
+ * Implements Dice.
+ */
+final class RegularDice implements Dice {
+    private final int sides;
+    private final Random randomizer;
+
+    /**
+     * @param sides number of sides (must be >= 2)
+     * @param randomizer injected Random (improves testability; avoids hard-wiring new Random()).
+     */
+    public RegularDice(int sides, Random randomizer) {
+        if (sides < 2) {
+            throw new IllegalArgumentException("Dice sides must be >= 2. Found: " + sides);
+        }
+        this.sides = sides;
+        this.randomizer = Objects.requireNonNull(randomizer, "randomizer cannot be null");
+    }
+
+    @Override
+    public int roll() {
+        // returns [1..sides]
+        return 1 + randomizer.nextInt(sides);
+    }
+}
+
+/**
+ * MultiDice: a collection of Dice objects.
+ * roll() returns the sum of each contained die's roll.
+ */
+final class MultiDice implements Dice {
+    private final List<Dice> dice = new ArrayList<>();
+
+    /**
+     * Adds a die to this MultiDice.
+     * @param d any Dice implementation
+     */
+    public void addDice(Dice d) {
+        dice.add(Objects.requireNonNull(d, "dice cannot be null"));
+    }
+
+    @Override
+    public int roll() {
+        int sum = 0;
+        for (Dice d : dice) {
+            sum += d.roll();
+        }
+        return sum;
+    }
+}
+
+/* =========================================================
+ * ===================== DOMAIN MODEL ======================
+ * ========================================================= */
+
+/**
+ * Player holds private state.
+ *
+ * IMPORTANT (matching your request):
+ * - The only public "resource API" is getResourceCount(Resource).
+ * - Other mutation happens via package-private helper methods that only "friend" classes
+ *   in the same package/file use (Resources/Board).
+ */
+final class Player {
+    private final Color playerID;
+
+    // Counts of pieces (kept because your UML includes them)
+    private int roadsBuilt;
+    private int citiesBuilt;
+    private int settlementsBuilt;
+
+    // Special cards not implemented in this assignment, but kept for future extension
+    private boolean longestRoad;
+    private boolean largestArmy;
+
+    private int age;     // not needed now, but kept as per UML
+    private int vPoints; // tracked by Game via Board scan; also maintained here for convenience
+
+    // Resource cards in hand (finite bank means this matters)
+    private final EnumMap<Resource, Integer> resources = new EnumMap<>(Resource.class);
+
+    // Built piece locations (IDs)
+    private final List<Integer> roads = new ArrayList<>();        // edgeIDs
+    private final List<Integer> settlements = new ArrayList<>();  // nodeIDs
+
+    public Player(Color playerID, int age) {
+        this.playerID = Objects.requireNonNull(playerID, "playerID cannot be null");
+        this.age = age;
+
+        // initialize all resource counts to 0
+        for (Resource r : Resource.values()) {
+            resources.put(r, 0);
+        }
+    }
+
+    public Color getPlayerID() {
+        return playerID;
+    }
+
+    /**
+     * The ONLY public resource method you asked for.
+     */
+    public int getResourceCount(Resource r) {
+        return resources.getOrDefault(r, 0);
+    }
+
+    /* ---------------- Package-private helpers (NOT public API) ----------------
+       These preserve encapsulation while still allowing Resources/Board to do their job.
+       They are intentionally not public getters/setters.
+    */
+
+    void addResource(Resource r, int amount) {
+        resources.put(r, getResourceCount(r) + amount);
+    }
+
+    void removeResource(Resource r, int amount) {
+        resources.put(r, getResourceCount(r) - amount);
+    }
+
+    int totalResourceCards() {
+        int total = 0;
+        for (Resource r : Resource.values()) {
+            total += getResourceCount(r);
+        }
+        return total;
+    }
+
+    void recordRoadBuilt(int edgeId) {
+        roadsBuilt++;
+        roads.add(edgeId);
+    }
+
+    void recordSettlementBuilt(int nodeId) {
+        settlementsBuilt++;
+        settlements.add(nodeId);
+        vPoints += 1;
+    }
+
+    void recordCityBuilt() {
+        citiesBuilt++;
+        // City replaces settlement: net +1 VP (settlement was 1, city is 2)
+        vPoints += 1;
+    }
+
+    int getVictoryPointsInternal() {
+        return vPoints;
+    }
+}
+
+/**
+ * Resources = Bank.
+ * Finite supply (base game total 95 resource cards).
+ *
+ * Key correctness requirement:
+ * - When giving resources to players, we MUST deduct from the bank.
+ * - When spending resources, we MUST add back to the bank.
+ *
+ * This class is the "Information Expert" for bank counts.
+ */
+class Resources {
+    private final EnumMap<Resource, Integer> resourceCounts = new EnumMap<>(Resource.class);
+
+    /**
+     * Constructor: counts are injected (supports extension / not hard-coded in the class logic).
+     */
+    public Resources(Map<Resource, Integer> initial) {
+        for (Resource r : Resource.values()) {
+            int value = initial.getOrDefault(r, 0);
+            if (value < 0) {
+                throw new IllegalArgumentException("Negative bank count for " + r);
+            }
+            resourceCounts.put(r, value);
+        }
+    }
+
+    /**
+     * Convenience factory: base Catan bank = 19 of each resource = 95.
+     */
+    public static Resources createDefaultBank() {
+        EnumMap<Resource, Integer> init = new EnumMap<>(Resource.class);
+        for (Resource r : Resource.values()) {
+            init.put(r, 19);
+        }
+        return new Resources(init);
+    }
+
+    /**
+     * Gives resources from the bank to a player.
+     *
+     * Algorithm:
+     * 1) Validate amount
+     * 2) Check bank has enough
+     * 3) Deduct from bank
+     * 4) Add to player's hand
+     *
+     * @return true if successful, false if bank insufficient.
+     */
+    public boolean giveResources(int numTaken, Player playerColor, Resource typeResource) {
+        if (numTaken <= 0) return false;
+
+        int available = resourceCounts.getOrDefault(typeResource, 0);
+        if (available < numTaken) {
+            return false;
+        }
+
+        // finite supply enforcement:
+        resourceCounts.put(typeResource, available - numTaken);
+        playerColor.addResource(typeResource, numTaken);
+        return true;
+    }
+
+    /**
+     * Spends resources from a player back to the bank.
+     *
+     * Algorithm:
+     * 1) Validate amount
+     * 2) Check player has enough
+     * 3) Deduct from player
+     * 4) Add to bank
+     *
+     * @return true if successful, false if player insufficient.
+     */
+    public boolean spendResources(int numSpent, Player playerID, Resource typeResource) {
+        if (numSpent <= 0) return false;
+
+        int inHand = playerID.getResourceCount(typeResource);
+        if (inHand < numSpent) {
+            return false;
+        }
+
+        playerID.removeResource(typeResource, numSpent);
+        resourceCounts.put(typeResource, resourceCounts.get(typeResource) + numSpent);
+        return true;
+    }
+
+    /**
+     * Used by ResourceProduction to avoid partial distribution.
+     * @param demand total requested resources for this production step
+     * @return true if bank can provide ALL demanded resources
+     */
+    public boolean canProvideAll(Map<Resource, Integer> demand) {
+        for (Map.Entry<Resource, Integer> e : demand.entrySet()) {
+            Resource r = e.getKey();
+            int needed = e.getValue();
+            if (resourceCounts.getOrDefault(r, 0) < needed) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    int getBankCount(Resource r) {
+        return resourceCounts.getOrDefault(r, 0);
+    }
+}
+
+/**
+ * ResourceTrading exists for future extension, but unused for this assignment.
+ * Left minimal on purpose (YAGNI).
+ */
+class ResourceTrading extends Resources {
+    public ResourceTrading(Map<Resource, Integer> initial) {
+        super(initial);
+    }
+}
+
+/**
+ * ResourceProduction:
+ * - Rolls dice (via Dice interface)
+ * - Determines producing tiles
+ * - Computes demand
+ * - If bank cannot satisfy, no one receives anything
+ * - Otherwise distributes using bank.giveResources(...) (this deducts bank automatically)
+ */
+final class ResourceProduction {
+    private final Dice dice;
+    private final Resources bank;
+    private final Board board;
+
+    public ResourceProduction(Dice dice, Resources bank, Board board) {
+        this.dice = Objects.requireNonNull(dice, "dice cannot be null");
+        this.bank = Objects.requireNonNull(bank, "bank cannot be null");
+        this.board = Objects.requireNonNull(board, "board cannot be null");
+    }
+
+    /**
+     * Matches your UML signature style (4 players).
+     */
+    public boolean produce(Player p1, Player p2, Player p3, Player p4) {
+        return produce(List.of(p1, p2, p3, p4));
+    }
+
+    /**
+     * @param players all players in the game (production affects all players)
+     * @return true if resources were successfully produced and distributed; false otherwise (including roll=7)
+     */
+    public boolean produce(List<Player> players) {
+        int rollSum = dice.roll();
+
+        // Requirement: rolling 7 -> continue without producing resources.
+        if (rollSum == 7) {
+            return false;
+        }
+
+        // 1) Find producing tiles
+        List<Tile> producingTiles = board.getTilesByToken(rollSum);
+        if (producingTiles.isEmpty()) {
+            return false;
+        }
+
+        // 2) Compute total demand (avoid partial distribution)
+        EnumMap<Resource, Integer> totalDemand = new EnumMap<>(Resource.class);
+        for (Resource r : Resource.values()) {
+            totalDemand.put(r, 0);
+        }
+
+        // Track each player's individual demand to apply distribution after bank check
+        Map<Player, EnumMap<Resource, Integer>> perPlayerDemand = new HashMap<>();
+        for (Player p : players) {
+            EnumMap<Resource, Integer> d = new EnumMap<>(Resource.class);
+            for (Resource r : Resource.values()) d.put(r, 0);
+            perPlayerDemand.put(p, d);
+        }
+
+        for (Tile t : producingTiles) {
+            Resource produced = Tile.getResource(t.getTerrain());
+            if (produced == null) continue; // desert or non-producing
+
+            for (Intersection inter : t.getIntersections()) {
+                Player owner = inter.getOwner();
+                if (owner == null) continue;
+
+                int amount = inter.isCity() ? 2 : 1;
+
+                // accumulate demand
+                perPlayerDemand.get(owner).put(produced, perPlayerDemand.get(owner).get(produced) + amount);
+                totalDemand.put(produced, totalDemand.get(produced) + amount);
+            }
+        }
+
+        // If nobody demands anything, return false
+        boolean anyDemand = false;
+        for (Resource r : Resource.values()) {
+            if (totalDemand.get(r) > 0) {
+                anyDemand = true;
+                break;
+            }
+        }
+        if (!anyDemand) return false;
+
+        // 3) Check bank can provide everything
+        if (!bank.canProvideAll(totalDemand)) {
+            return false;
+        }
+
+        // 4) Distribute (each call deducts from bank)
+        for (Map.Entry<Player, EnumMap<Resource, Integer>> e : perPlayerDemand.entrySet()) {
+            Player p = e.getKey();
+            EnumMap<Resource, Integer> d = e.getValue();
+            for (Resource r : Resource.values()) {
+                int amount = d.get(r);
+                if (amount > 0) {
+                    // should always succeed because we checked canProvideAll
+                    bank.giveResources(amount, p, r);
+                }
+            }
+        }
+
+        return true;
+    }
+}
+
+/**
+ * SpecialCard kept for future extension (not implemented now).
+ */
+final class SpecialCard {
+    public Player largestArmy(Player p) {
+        return p;
+    }
+    public Player longestRoad(Player p) {
+        return p;
+    }
+}
+
+/* =========================================================
+ * ===================== BOARD / MAP =======================
+ * ========================================================= */
+
+/**
+ * Board builds a valid map once (R1.1).
+ * This class is the "Information Expert" for:
+ * - tiles, intersections, edges
+ * - whether a build is legal (invariants)
+ */
+final class Board {
+
+    private final List<Tile> tiles = new ArrayList<>();
+    private final List<Intersection> intersections = new ArrayList<>();
+    private final List<Edge> edges = new ArrayList<>();
+
+    public Board() {
+        BoardConfig.buildMap(tiles, intersections, edges);
+    }
+
+    /* ---------------- getters needed by other domain services ---------------- */
+
+    public List<Tile> getTilesByToken(int token) {
+        List<Tile> out = new ArrayList<>();
+        for (Tile t : tiles) {
+            if (t.getToken() == token) {
+                out.add(t);
+            }
+        }
+        return out;
+    }
+
+    public List<Tile> getTiles() {
+        return Collections.unmodifiableList(tiles);
+    }
+
+    public List<Intersection> getIntersections() {
+        return Collections.unmodifiableList(intersections);
+    }
+
+    public List<Edge> getEdges() {
+        return Collections.unmodifiableList(edges);
+    }
+
+    /* ------------------- Build methods (enforce invariants) ------------------- */
+
+    /**
+     * Road invariant: must connect to an existing road/settlement/city of this player.
+     * @return true if built successfully
+     */
+    public boolean buildRoad(Player p, Edge e) {
+        if (e.getOwner() != null) return false;
+
+        boolean connected = isEdgeConnectedToPlayer(p, e);
+        if (!connected) return false;
+
+        e.setOwner(p);
+        p.recordRoadBuilt(e.getEdgeID());
+        return true;
+    }
+
+    /**
+     * Settlement invariants:
+     * - intersection must be empty
+     * - distance rule: all adjacent intersections must be empty
+     * - must connect to at least one of player's roads (except during initial placement, handled separately)
+     */
+    public boolean buildSettlement(Player p, Intersection i) {
+        return buildSettlement(p, i, false);
+    }
+
+    /**
+     * @param isInitialPlacement if true, we skip the "must connect to road" rule.
+     */
+    public boolean buildSettlement(Player p, Intersection i, boolean isInitialPlacement) {
+        if (i.getOwner() != null) return false;
+
+        // distance rule: adjacent intersections must be vacant
+        for (Intersection neighbor : i.getAdjacentIntersections()) {
+            if (neighbor.getOwner() != null) {
+                return false;
+            }
+        }
+
+        // connection rule (skip if initial placement)
+        if (!isInitialPlacement) {
+            boolean hasPlayerRoad = false;
+            for (Edge e : i.getEdges()) {
+                if (p.equals(e.getOwner())) {
+                    hasPlayerRoad = true;
+                    break;
+                }
+            }
+            if (!hasPlayerRoad) return false;
+        }
+
+        i.setOwner(p);
+        i.setCity(false);
+        p.recordSettlementBuilt(i.getNodeID());
+        return true;
+    }
+
+    /**
+     * City invariant:
+     * - must replace an existing settlement of the same player.
+     * - cannot build city on empty node or on other player's node.
+     */
+    public boolean buildCity(Player p, Intersection i) {
+        if (!p.equals(i.getOwner())) return false;
+        if (i.isCity()) return false;
+
+        i.setCity(true);
+        p.recordCityBuilt();
+        return true;
+    }
+
+    private boolean isEdgeConnectedToPlayer(Player p, Edge e) {
+        Intersection a = e.getIntersection1();
+        Intersection b = e.getIntersection2();
+
+        // Connected if endpoint is player's settlement/city
+        if (p.equals(a.getOwner()) || p.equals(b.getOwner())) {
+            return true;
+        }
+
+        // Connected if endpoint touches another player-owned road
+        for (Edge ea : a.getEdges()) {
+            if (p.equals(ea.getOwner())) return true;
+        }
+        for (Edge eb : b.getEdges()) {
+            if (p.equals(eb.getOwner())) return true;
+        }
+        return false;
+    }
+}
+
+/**
+ * Intersection (node) on the board.
+ * Stores:
+ * - adjacent edges
+ * - adjacent tiles
+ * - owner + city flag
+ */
+final class Intersection {
+    private int nodeID;
+    private final List<Edge> edges = new ArrayList<>();
+    private final List<Tile> tiles = new ArrayList<>();
+    private Player owner;
+    private boolean isCity;
+
+    Intersection(int nodeID) {
+        this.nodeID = nodeID;
+    }
+
+    int getNodeID() {
+        return nodeID;
+    }
+
+    void setNodeID(int id) {
+        this.nodeID = id;
+    }
+
+    List<Edge> getEdges() {
+        return edges;
+    }
+
+    void addEdge(Edge e) {
+        edges.add(e);
+    }
+
+    void addTile(Tile t) {
+        tiles.add(t);
+    }
+
+    List<Tile> getTiles() {
+        return tiles;
+    }
+
+    Player getOwner() {
+        return owner;
+    }
+
+    void setOwner(Player owner) {
+        this.owner = owner;
+    }
+
+    boolean isCity() {
+        return isCity;
+    }
+
+    void setCity(boolean city) {
+        isCity = city;
+    }
+
+    /**
+     * Adjacent intersections are the nodes connected by an edge.
+     */
+    List<Intersection> getAdjacentIntersections() {
+        List<Intersection> adj = new ArrayList<>();
+        for (Edge e : edges) {
+            Intersection other = (e.getIntersection1() == this) ? e.getIntersection2() : e.getIntersection1();
+            adj.add(other);
+        }
+        return adj;
+    }
+}
+
+/**
+ * Edge between two intersections.
+ * A road (if built) occupies an edge.
+ */
+final class Edge {
+    private int edgeID;
+    private Player owner;
+    private final Intersection intersection1;
+    private final Intersection intersection2;
+
+    Edge(int edgeID, Intersection i1, Intersection i2) {
+        this.edgeID = edgeID;
+        this.intersection1 = i1;
+        this.intersection2 = i2;
+    }
+
+    int getEdgeID() {
+        return edgeID;
+    }
+
+    void setEdgeID(int id) {
+        this.edgeID = id;
+    }
+
+    Player getOwner() {
+        return owner;
+    }
+
+    void setOwner(Player owner) {
+        this.owner = owner;
+    }
+
+    Intersection getIntersection1() {
+        return intersection1;
+    }
+
+    Intersection getIntersection2() {
+        return intersection2;
+    }
+}
+
+/**
+ * Tile (hex) on the board.
+ * Contains:
+ * - 6 intersections around the tile
+ * - terrain and token
+ * - tileID (0..18, using the required scheme)
+ */
+final class Tile {
+    private final List<Intersection> intersections;
+    private final Terrain terrain;
+    private final int token;
+    private final int tileID;
+
+    Tile(int tileID, Terrain terrain, int token, List<Intersection> intersections) {
+        this.tileID = tileID;
+        this.terrain = terrain;
+        this.token = token;
+        this.intersections = intersections;
+    }
+
+    List<Intersection> getIntersections() {
+        return intersections;
+    }
+
+    Terrain getTerrain() {
+        return terrain;
+    }
+
+    int getToken() {
+        return token;
+    }
+
+    int getTileID() {
+        return tileID;
+    }
+
+    /**
+     * Maps terrain -> produced resource.
+     * Desert produces none (returns null).
+     */
+    public static Resource getResource(Terrain t) {
+        switch (t) {
+            case MOUNTAIN: return Resource.ORE;
+            case FOREST:   return Resource.LUMBER;
+            case HILLS:    return Resource.BRICK;
+            case FIELDS:   return Resource.GRAIN;
+            case PASTURE:  return Resource.WOOL;
+            case DESERT:   return null;
+            default:       return null;
+        }
+    }
+}
+
+/**
+ * BoardConfig:
+ * - Hard-wires the map layout and tile properties in ONE place (as required).
+ * - Keeps the rest of the system clean and testable.
+ *
+ * Tiles (terrain + token) match your provided picture.
+ * Node IDs are assigned deterministically starting with center tile corners.
+ */
+final class BoardConfig {
+
+    private BoardConfig() {}
+
+    /**
+     * Creates a valid 19-hex map with:
+     * - 19 tiles
+     * - 54 intersections
+     * - edges between intersections
+     *
+     * Note: This is a valid Catan topology generator.
+     * The "exact node id numbering from the picture" can be enforced here if needed later.
+     */
+    static void buildMap(List<Tile> tilesOut, List<Intersection> intersectionsOut, List<Edge> edgesOut) {
+        // 1) Create tiles with axial coordinates in tileID order (0 center, then rings).
+        List<Axial> tileCoords = tileIdAxialCoords();
+
+        // Terrain + token per tileID (from your image)
+        Terrain[] terrainById = terrainByTileId();
+        int[] tokenById = tokenByTileId();
+
+        // 2) Generate unique intersections (vertices) using geometric hashing
+        Map<VertexKey, Intersection> vertexToIntersection = new HashMap<>();
+        List<List<Intersection>> tileCorners = new ArrayList<>();
+
+        double size = 10.0; // geometric scale factor (only affects coordinate keys, not logic)
+
+        for (int tileId = 0; tileId < 19; tileId++) {
+            Axial a = tileCoords.get(tileId);
+            Point center = axialToPointFlatTop(a, size);
+
+            List<Point> corners = hexCornersFlatTop(center, size);
+            List<Intersection> intersectionsForTile = new ArrayList<>(6);
+
+            for (Point corner : corners) {
+                VertexKey key = new VertexKey(corner.x, corner.y);
+                Intersection inter = vertexToIntersection.get(key);
+                if (inter == null) {
+                    inter = new Intersection(-1); // ID assigned later
+                    vertexToIntersection.put(key, inter);
+                }
+                intersectionsForTile.add(inter);
+            }
+
+            tileCorners.add(intersectionsForTile);
+        }
+
+        // 3) Assign node IDs deterministically (center tile corners first: 0..5)
+        List<Intersection> allIntersections = new ArrayList<>(vertexToIntersection.values());
+        assignNodeIds(allIntersections, tileCorners.get(0)); // tile 0 corners
+
+        // 4) Create Edge objects for each unique segment between neighboring corners
+        Map<EdgeKey, Edge> edgeMap = new HashMap<>();
+        for (int tileId = 0; tileId < 19; tileId++) {
+            List<Intersection> corners = tileCorners.get(tileId);
+
+            // Add edges around the hex (0-1,1-2,...,5-0)
+            for (int i = 0; i < 6; i++) {
+                Intersection a = corners.get(i);
+                Intersection b = corners.get((i + 1) % 6);
+
+                EdgeKey eKey = new EdgeKey(a.getNodeID(), b.getNodeID());
+                if (!edgeMap.containsKey(eKey)) {
+                    Edge e = new Edge(-1, a, b);
+                    edgeMap.put(eKey, e);
+
+                    // link edge to intersections
+                    a.addEdge(e);
+                    b.addEdge(e);
+                }
+            }
+        }
+
+        // Assign edge IDs deterministically
+        List<Edge> allEdges = new ArrayList<>(edgeMap.values());
+        allEdges.sort(Comparator.comparingInt(e -> Math.min(e.getIntersection1().getNodeID(), e.getIntersection2().getNodeID()))
+                .thenComparingInt(e -> Math.max(e.getIntersection1().getNodeID(), e.getIntersection2().getNodeID())));
+
+        for (int i = 0; i < allEdges.size(); i++) {
+            allEdges.get(i).setEdgeID(i);
+        }
+
+        // 5) Create Tile objects and connect them to intersections (tile <-> node adjacency)
+        for (int tileId = 0; tileId < 19; tileId++) {
+            List<Intersection> corners = tileCorners.get(tileId);
+
+            Tile tile = new Tile(tileId, terrainById[tileId], tokenById[tileId], corners);
+
+            for (Intersection inter : corners) {
+                inter.addTile(tile);
+            }
+
+            tilesOut.add(tile);
+        }
+
+        // 6) Export lists
+        allIntersections.sort(Comparator.comparingInt(Intersection::getNodeID));
+        intersectionsOut.addAll(allIntersections);
+
+        edgesOut.addAll(allEdges);
+    }
+
+    /* -------------------- Tile properties (from your picture) -------------------- */
+
+    private static Terrain[] terrainByTileId() {
+        Terrain[] t = new Terrain[19];
+        // Using your provided board (tile IDs + terrain):
+        t[0] = Terrain.FOREST;   // WOOD
+        t[1] = Terrain.FIELDS;   // WHEAT
+        t[2] = Terrain.HILLS;    // BRICK
+        t[3] = Terrain.MOUNTAIN; // ORE
+        t[4] = Terrain.PASTURE;  // SHEEP
+        t[5] = Terrain.PASTURE;  // SHEEP
+        t[6] = Terrain.PASTURE;  // SHEEP
+        t[7] = Terrain.FIELDS;   // WHEAT
+        t[8] = Terrain.MOUNTAIN; // ORE
+        t[9] = Terrain.FOREST;   // WOOD
+        t[10] = Terrain.MOUNTAIN;// ORE
+        t[11] = Terrain.FIELDS;  // WHEAT
+        t[12] = Terrain.FOREST;  // WOOD
+        t[13] = Terrain.HILLS;   // BRICK
+        t[14] = Terrain.HILLS;   // BRICK
+        t[15] = Terrain.FIELDS;  // WHEAT
+        t[16] = Terrain.DESERT;  // DESERT
+        t[17] = Terrain.FOREST;  // WOOD
+        t[18] = Terrain.PASTURE; // SHEEP
+        return t;
+    }
+
+    private static int[] tokenByTileId() {
+        int[] token = new int[19];
+        token[0] = 10;
+        token[1] = 11;
+        token[2] = 8;
+        token[3] = 3;
+        token[4] = 11;
+        token[5] = 5;
+        token[6] = 12;
+        token[7] = 3;
+        token[8] = 6;
+        token[9] = 4;
+        token[10] = 6;
+        token[11] = 9;
+        token[12] = 5;
+        token[13] = 9;
+        token[14] = 8;
+        token[15] = 4;
+        token[16] = 0; // desert has no token; kept 0 to simplify checks
+        token[17] = 2;
+        token[18] = 10;
+        return token;
+    }
+
+    /* -------------------- Tile ID order (0 center, rings) -------------------- */
+
+    private static List<Axial> tileIdAxialCoords() {
+        // 19-hex "radius 2" layout:
+        // We place tile 0 at (0,0). Then ring 1 and ring 2 in clockwise order.
+        // This keeps tile IDs stable and separated from the rest of the system.
+        List<Axial> coords = new ArrayList<>(19);
+
+        coords.add(new Axial(0, 0)); // tile 0
+
+        // ring 1 (6 tiles)
+        coords.addAll(ringCoords(1));
+
+        // ring 2 (12 tiles)
+        coords.addAll(ringCoords(2));
+
+        // total should be 19
+        return coords;
+    }
+
+    /**
+     * Returns axial coords for a ring of radius r around (0,0), in clockwise order.
+     */
+    private static List<Axial> ringCoords(int radius) {
+        List<Axial> ring = new ArrayList<>(radius * 6);
+        // directions in axial coordinates (flat-top)
+        Axial[] dirs = new Axial[] {
+                new Axial(1, 0),   // E
+                new Axial(1, -1),  // NE
+                new Axial(0, -1),  // NW
+                new Axial(-1, 0),  // W
+                new Axial(-1, 1),  // SW
+                new Axial(0, 1)    // SE
+        };
+
+        // start at "south-west" corner of the ring to get a stable loop
+        Axial cube = new Axial(-radius, radius);
+
+        for (int side = 0; side < 6; side++) {
+            for (int step = 0; step < radius; step++) {
+                ring.add(cube);
+                cube = cube.add(dirs[side]);
+            }
+        }
+        return ring;
+    }
+
+    /* -------------------- Deterministic node IDs -------------------- */
+
+    private static void assignNodeIds(List<Intersection> all, List<Intersection> centerTileCorners) {
+        // 1) Assign 0..5 to center tile corners in a stable geometric order
+        // We try to match the idea "center tile corners are first" (as in the spec).
+        // Order target: top-right=0, right=1, bottom-right=2, bottom-left=3, left=4, top-left=5.
+
+        // We don't have direct coordinates stored in Intersection. So we assign based on adjacency
+        // order from the list produced by hexCornersFlatTop(...) which is already stable:
+        // [top-left, top-right, right, bottom-right, bottom-left, left]
+        // Map them into the desired IDs:
+        Intersection topLeft = centerTileCorners.get(0);
+        Intersection topRight = centerTileCorners.get(1);
+        Intersection right = centerTileCorners.get(2);
+        Intersection bottomRight = centerTileCorners.get(3);
+        Intersection bottomLeft = centerTileCorners.get(4);
+        Intersection left = centerTileCorners.get(5);
+
+        topRight.setNodeID(0);
+        right.setNodeID(1);
+        bottomRight.setNodeID(2);
+        bottomLeft.setNodeID(3);
+        left.setNodeID(4);
+        topLeft.setNodeID(5);
+
+        // 2) Assign remaining IDs (6..53) by BFS expanding outward from those 6 nodes.
+        // This produces a "ring-like" numbering, deterministic for debugging/testing.
+        Set<Intersection> seeded = new HashSet<>(centerTileCorners);
+
+        // BFS frontier starts from the 6 center corners in ID order
+        List<Intersection> start = List.of(topRight, right, bottomRight, bottomLeft, left, topLeft);
+        Queue<Intersection> q = new ArrayDeque<>(start);
+
+        int nextId = 6;
+
+        while (!q.isEmpty()) {
+            Intersection cur = q.poll();
+            for (Intersection nb : cur.getAdjacentIntersections()) {
+                if (nb.getNodeID() != -1) continue;
+                nb.setNodeID(nextId++);
+                q.add(nb);
+            }
+        }
+
+        // If BFS didn’t reach everything (should be rare), assign remaining by insertion order
+        if (nextId <= 53) {
+            for (Intersection i : all) {
+                if (i.getNodeID() == -1) {
+                    i.setNodeID(nextId++);
+                }
+            }
+        }
+
+        // Safety check
+        if (nextId != 54) {
+            throw new IllegalStateException("Expected 54 intersections, assigned: " + nextId);
+        }
+    }
+
+    /* -------------------- Geometry helpers (flat-top hex) -------------------- */
+
+    private static Point axialToPointFlatTop(Axial a, double size) {
+        // flat-top axial-to-pixel
+        double x = size * (1.5 * a.q);
+        double y = size * (Math.sqrt(3) * (a.r + a.q / 2.0));
+        return new Point(x, y);
+    }
+
+    /**
+     * Returns corners in stable order:
+     * [top-left, top-right, right, bottom-right, bottom-left, left]
+     */
+    private static List<Point> hexCornersFlatTop(Point center, double size) {
+        // For flat-top hex, corner angles (degrees) relative to center:
+        // 150, 30, -30, -150, -210, 210 would be one ordering, but we want the
+        // specific visual order listed above, so we define them directly.
+        double[][] offsets = new double[][]{
+                {-size * 0.5, -size * Math.sqrt(3) / 2.0}, // top-left
+                { size * 0.5, -size * Math.sqrt(3) / 2.0}, // top-right
+                { size, 0},                               // right
+                { size * 0.5, size * Math.sqrt(3) / 2.0},  // bottom-right
+                {-size * 0.5, size * Math.sqrt(3) / 2.0},  // bottom-left
+                {-size, 0}                                // left
+        };
+
+        List<Point> corners = new ArrayList<>(6);
+        for (double[] o : offsets) {
+            corners.add(new Point(center.x + o[0], center.y + o[1]));
+        }
+        return corners;
+    }
+
+    /* -------------------- Small helper structs -------------------- */
+
+    private static final class Axial {
+        final int q;
+        final int r;
+
+        Axial(int q, int r) {
+            this.q = q;
+            this.r = r;
+        }
+
+        Axial add(Axial other) {
+            return new Axial(this.q + other.q, this.r + other.r);
+        }
+    }
+
+    private static final class Point {
+        final double x;
+        final double y;
+
+        Point(double x, double y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    /**
+     * Hash key for a vertex point (rounded to avoid floating equality issues).
+     */
+    private static final class VertexKey {
+        final long rx;
+        final long ry;
+
+        VertexKey(double x, double y) {
+            // round to 1e-6 scale
+            this.rx = Math.round(x * 1_000_000.0);
+            this.ry = Math.round(y * 1_000_000.0);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof VertexKey)) return false;
+            VertexKey other = (VertexKey) o;
+            return rx == other.rx && ry == other.ry;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(rx, ry);
+        }
+    }
+
+    /**
+     * Undirected edge key based on node IDs.
+     */
+    private static final class EdgeKey {
+        final int a;
+        final int b;
+
+        EdgeKey(int n1, int n2) {
+            this.a = Math.min(n1, n2);
+            this.b = Math.max(n1, n2);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (!(o instanceof EdgeKey)) return false;
+            EdgeKey other = (EdgeKey) o;
+            return a == other.a && b == other.b;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(a, b);
+        }
+    }
+}
+
+/* =========================================================
+ * ========================= GAME ==========================
+ * ========================================================= */
+
+/**
+ * Game orchestrates the simulation (GRASP Controller style):
+ * - holds board, bank, production service
+ * - runs rounds and turns
+ * - enforces "agents with >7 cards must try to spend" (R1.8)
+ * - prints console output per spec
+ */
+final class Game {
+    private int currentRound;
+    private final int maxRound;
+
+    private final Board board;
+    private final Resources bank;
+    private final ResourceProduction production;
+
+    private final Player orange;
+    private final Player white;
+    private final Player red;
+    private final Player blue;
+
+    private final Random randomizer;
+
+    public Game(Board board, Resources bank, ResourceProduction production, int maxRound, Random randomizer) {
+        this.board = Objects.requireNonNull(board, "board cannot be null");
+        this.bank = Objects.requireNonNull(bank, "bank cannot be null");
+        this.production = Objects.requireNonNull(production, "production cannot be null");
+        this.maxRound = maxRound;
+        this.randomizer = Objects.requireNonNull(randomizer, "randomizer cannot be null");
+
+        // players (IDs are colors)
+        orange = new Player(Color.ORANGE, 19);
+        white  = new Player(Color.WHITE, 20);
+        red    = new Player(Color.RED, 21);
+        blue   = new Player(Color.BLUE, 22);
+
+        currentRound = 0;
+
+        // initial placements (2 settlements + 2 roads each, free)
+        setupInitialPlacements();
+    }
+
+    /**
+     * Runs the simulation until:
+     * - max rounds reached OR
+     * - someone reaches 10 VPs
+     */
+    public void start() {
+        while (currentRound < maxRound && !checkWinner()) {
+            currentRound++;
+            playRound();
+            printVictoryPointsSummary();
+        }
+        endGame();
+    }
+
+    /**
+     * A round = each player takes 1 turn (4 turns per round).
+     */
+    public void playRound() {
+        playTurn(orange);
+        playTurn(white);
+        playTurn(red);
+        playTurn(blue);
+    }
+
+    /**
+     * One agent turn:
+     * 1) Must roll for production (applies to all players)
+     * 2) If player has > 7 cards, must try to spend by building something (R1.8)
+     * 3) Otherwise pick a random legal action (build road/settlement/city or do nothing)
+     */
+    private void playTurn(Player currentPlayer) {
+        boolean produced = production.produce(orange, white, red, blue);
+
+        if (!produced) {
+            log(currentPlayer, "rolled dice -> no production this turn (either 7, no tiles, or bank shortage).");
+        } else {
+            log(currentPlayer, "rolled dice -> resources produced for eligible settlements/cities.");
+        }
+
+        if (currentPlayer.totalResourceCards() > 7) {
+            boolean spent = encourageSpending(currentPlayer);
+            if (!spent) {
+                log(currentPlayer, "has >7 cards but could not build anything legally; did nothing.");
+            }
+            return;
+        }
+
+        // Random action choice
+        List<RunnableAction> actions = computeLegalActions(currentPlayer);
+        if (actions.isEmpty()) {
+            log(currentPlayer, "no legal build action available; did nothing.");
+            return;
+        }
+
+        RunnableAction chosen = actions.get(randomizer.nextInt(actions.size()));
+        chosen.run();
+    }
+
+    /**
+     * R1.8: "Agents with more than 7 cards must try to spend those cards by building something."
+     * Implementation approach requested: simple linear check of actions, pick one randomly.
+     *
+     * @return true if an action was executed, false otherwise
+     */
+    private boolean encourageSpending(Player p) {
+        List<RunnableAction> actions = computeLegalActions(p);
+
+        if (actions.isEmpty()) return false;
+
+        RunnableAction chosen = actions.get(randomizer.nextInt(actions.size()));
+        chosen.run();
+        log(p, "was encouraged to spend (>7 cards) and built something.");
+        return true;
+    }
+
+    /**
+     * Computes legal actions for the agent at this moment.
+     * We ignore trading/dev cards/robber, etc.
+     *
+     * Builds require spending from player to bank first,
+     * and only then applying the board change.
+     */
+    private List<RunnableAction> computeLegalActions(Player p) {
+        List<RunnableAction> actions = new ArrayList<>();
+
+        // Try build city
+        if (canAffordCity(p)) {
+            for (Intersection i : board.getIntersections()) {
+                if (p.equals(i.getOwner()) && !i.isCity()) {
+                    actions.add(() -> {
+                        if (payCityCost(p) && board.buildCity(p, i)) {
+                            log(p, "built CITY at node " + i.getNodeID());
+                        }
+                    });
+                }
+            }
+        }
+
+        // Try build settlement
+        if (canAffordSettlement(p)) {
+            for (Intersection i : board.getIntersections()) {
+                if (i.getOwner() == null) {
+                    // settlement must connect to player road (not initial placement)
+                    boolean hasPlayerRoad = false;
+                    for (Edge e : i.getEdges()) {
+                        if (p.equals(e.getOwner())) {
+                            hasPlayerRoad = true;
+                            break;
+                        }
+                    }
+                    if (!hasPlayerRoad) continue;
+
+                    // distance rule check is inside board.buildSettlement, but we can prefilter cheaply:
+                    boolean neighborsFree = true;
+                    for (Intersection n : i.getAdjacentIntersections()) {
+                        if (n.getOwner() != null) {
+                            neighborsFree = false;
+                            break;
+                        }
+                    }
+                    if (!neighborsFree) continue;
+
+                    actions.add(() -> {
+                        if (paySettlementCost(p) && board.buildSettlement(p, i)) {
+                            log(p, "built SETTLEMENT at node " + i.getNodeID());
+                        }
+                    });
+                }
+            }
+        }
+
+        // Try build road
+        if (canAffordRoad(p)) {
+            for (Edge e : board.getEdges()) {
+                if (e.getOwner() == null) {
+                    actions.add(() -> {
+                        if (payRoadCost(p) && board.buildRoad(p, e)) {
+                            log(p, "built ROAD on edge " + e.getEdgeID());
+                        }
+                    });
+                }
+            }
+        }
+
+        return actions;
+    }
+
+    /* ----------------------- Costs / affordability helpers ----------------------- */
+
+    private boolean canAffordRoad(Player p) {
+        return p.getResourceCount(Resource.BRICK) >= 1
+                && p.getResourceCount(Resource.LUMBER) >= 1;
+    }
+
+    private boolean canAffordSettlement(Player p) {
+        return p.getResourceCount(Resource.BRICK) >= 1
+                && p.getResourceCount(Resource.LUMBER) >= 1
+                && p.getResourceCount(Resource.WOOL) >= 1
+                && p.getResourceCount(Resource.GRAIN) >= 1;
+    }
+
+    private boolean canAffordCity(Player p) {
+        return p.getResourceCount(Resource.ORE) >= 3
+                && p.getResourceCount(Resource.GRAIN) >= 2;
+    }
+
+    private boolean payRoadCost(Player p) {
+        // spendResources returns false if player lacks resources (double safety)
+        return bank.spendResources(1, p, Resource.BRICK)
+                && bank.spendResources(1, p, Resource.LUMBER);
+    }
+
+    private boolean paySettlementCost(Player p) {
+        return bank.spendResources(1, p, Resource.BRICK)
+                && bank.spendResources(1, p, Resource.LUMBER)
+                && bank.spendResources(1, p, Resource.WOOL)
+                && bank.spendResources(1, p, Resource.GRAIN);
+    }
+
+    private boolean payCityCost(Player p) {
+        return bank.spendResources(3, p, Resource.ORE)
+                && bank.spendResources(2, p, Resource.GRAIN);
+    }
+
+    /* ----------------------- Winner / scoring ----------------------- */
+
+    public boolean checkWinner() {
+        return getVictoryPoints(orange) >= 10
+                || getVictoryPoints(white) >= 10
+                || getVictoryPoints(red) >= 10
+                || getVictoryPoints(blue) >= 10;
+    }
+
+    private int getVictoryPoints(Player p) {
+        // settlement = 1, city = 2
+        int vp = 0;
+        for (Intersection i : board.getIntersections()) {
+            if (p.equals(i.getOwner())) {
+                vp += i.isCity() ? 2 : 1;
+            }
+        }
+        return vp;
+    }
+
+    public void endGame() {
+        // announce winner if exists
+        Player winner = null;
+        int best = -1;
+
+        for (Player p : List.of(orange, white, red, blue)) {
+            int vp = getVictoryPoints(p);
+            if (vp > best) {
+                best = vp;
+                winner = p;
+            }
+        }
+
+        System.out.println("=== GAME ENDED ===");
+        System.out.println("Winner (highest VP): " + winner.getPlayerID() + " with " + best + " VP.");
+    }
+
+    /* ----------------------- Setup: initial placements ----------------------- */
+
+    private void setupInitialPlacements() {
+        // Per rules: each player places 2 settlements + 2 roads.
+        // We do it randomly but still enforce distance rule.
+        List<Player> order = List.of(orange, white, red, blue);
+
+        for (Player p : order) {
+            placeInitialSettlementAndRoad(p);
+        }
+        for (Player p : order) {
+            placeInitialSettlementAndRoad(p);
+
+            // After second settlement in real Catan, players take starting resources.
+            // We approximate: 1 resource from each adjacent non-desert tile, if bank can provide all.
+            grantStartingResourcesForSecondSettlement(p);
+        }
+    }
+
+    private void placeInitialSettlementAndRoad(Player p) {
+        // Find all nodes that satisfy distance rule (board.buildSettlement checks it)
+        List<Intersection> candidates = new ArrayList<>();
+        for (Intersection i : board.getIntersections()) {
+            if (i.getOwner() != null) continue;
+
+            boolean neighborsFree = true;
+            for (Intersection n : i.getAdjacentIntersections()) {
+                if (n.getOwner() != null) {
+                    neighborsFree = false;
+                    break;
+                }
+            }
+            if (neighborsFree) candidates.add(i);
+        }
+
+        if (candidates.isEmpty()) return;
+
+        Intersection chosen = candidates.get(randomizer.nextInt(candidates.size()));
+        boolean ok = board.buildSettlement(p, chosen, true);
+        if (ok) {
+            log(p, "initial placement: SETTLEMENT at node " + chosen.getNodeID());
+        }
+
+        // Place one adjacent road (free) on a random empty edge
+        List<Edge> edgeCandidates = new ArrayList<>();
+        for (Edge e : chosen.getEdges()) {
+            if (e.getOwner() == null) edgeCandidates.add(e);
+        }
+        if (!edgeCandidates.isEmpty()) {
+            Edge roadEdge = edgeCandidates.get(randomizer.nextInt(edgeCandidates.size()));
+            // For initial placement, we relax connection rule by building right after settlement
+            roadEdge.setOwner(p);
+            p.recordRoadBuilt(roadEdge.getEdgeID());
+            log(p, "initial placement: ROAD on edge " + roadEdge.getEdgeID());
+        }
+    }
+
+    private void grantStartingResourcesForSecondSettlement(Player p) {
+        // Find the most recently placed settlement node for this player
+        // (p.settlements list exists, but it is private; we keep it that way.)
+        // So we scan the board for settlements owned by p and pick one randomly as "second".
+        List<Intersection> ownedSettlements = new ArrayList<>();
+        for (Intersection i : board.getIntersections()) {
+            if (p.equals(i.getOwner()) && !i.isCity()) {
+                ownedSettlements.add(i);
+            }
+        }
+        if (ownedSettlements.isEmpty()) return;
+
+        Intersection chosen = ownedSettlements.get(randomizer.nextInt(ownedSettlements.size()));
+
+        // Determine 1 resource per adjacent non-desert tile
+        EnumMap<Resource, Integer> demand = new EnumMap<>(Resource.class);
+        for (Resource r : Resource.values()) demand.put(r, 0);
+
+        for (Tile t : chosen.getTiles()) {
+            Resource produced = Tile.getResource(t.getTerrain());
+            if (produced != null) {
+                demand.put(produced, demand.get(produced) + 1);
+            }
+        }
+
+        if (!bank.canProvideAll(demand)) {
+            log(p, "starting resources skipped (bank shortage).");
+            return;
+        }
+
+        for (Resource r : Resource.values()) {
+            int amt = demand.get(r);
+            if (amt > 0) bank.giveResources(amt, p, r);
+        }
+        log(p, "received starting resources for initial placement.");
+    }
+
+    /* ----------------------- Console output (spec format) ----------------------- */
+
+    private void log(Player p, String action) {
+        System.out.println(currentRound + " / " + p.getPlayerID() + ": " + action);
+    }
+
+    private void printVictoryPointsSummary() {
+        System.out.println(currentRound + " / " + "SYSTEM" + ": VP summary -> "
+                + "ORANGE=" + getVictoryPoints(orange) + ", "
+                + "WHITE=" + getVictoryPoints(white) + ", "
+                + "RED=" + getVictoryPoints(red) + ", "
+                + "BLUE=" + getVictoryPoints(blue));
+    }
+
+    /* Simple command object for delaying action execution */
+    private static final class RunnableAction {
+        private final Runnable r;
+        RunnableAction(Runnable r) { this.r = r; }
+        void run() { r.run(); }
+    }
+}
