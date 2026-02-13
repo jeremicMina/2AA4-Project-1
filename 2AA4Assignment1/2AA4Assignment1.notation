@@ -906,7 +906,7 @@
     </children>
     <styles xmi:type="notation:FontStyle" xmi:id="_ncWOgQKnEfGPs4GcdHu8KQ"/>
     <element xmi:type="uml:Association" href="2AA4Assignment1.uml#_ncIMEAKnEfGPs4GcdHu8KQ"/>
-    <bendpoints xmi:type="notation:RelativeBendpoints" xmi:id="_ncWOggKnEfGPs4GcdHu8KQ" points="[433, 374, -643984, -643984]$[433, 354, -643984, -643984]"/>
+    <bendpoints xmi:type="notation:RelativeBendpoints" xmi:id="_ncWOggKnEfGPs4GcdHu8KQ" points="[1460, 620, -643984, -643984]$[1460, 540, -643984, -643984]$[1280, 540, -643984, -643984]$[1280, 460, -643984, -643984]"/>
     <sourceAnchor xmi:type="notation:IdentityAnchor" xmi:id="_ncn7UAKnEfGPs4GcdHu8KQ" id="(0.7468879668049793,0.0)"/>
     <targetAnchor xmi:type="notation:IdentityAnchor" xmi:id="_ncn7UQKnEfGPs4GcdHu8KQ" id="(0.7468879668049793,1.0)"/>
   </edges>
@@ -937,7 +937,7 @@
     </children>
     <styles xmi:type="notation:FontStyle" xmi:id="_raMkIQKnEfGPs4GcdHu8KQ"/>
     <element xmi:type="uml:Association" href="2AA4Assignment1.uml#_rZ9TkAKnEfGPs4GcdHu8KQ"/>
-    <bendpoints xmi:type="notation:RelativeBendpoints" xmi:id="_raMkIgKnEfGPs4GcdHu8KQ" points="[593, 174, -643984, -643984]$[493, 214, -643984, -643984]"/>
+    <bendpoints xmi:type="notation:RelativeBendpoints" xmi:id="_raMkIgKnEfGPs4GcdHu8KQ" points="[1200, 160, -643984, -643984]$[1200, 240, -643984, -643984]$[1360, 240, -643984, -643984]$[1360, 460, -643984, -643984]$[1340, 460, -643984, -643984]"/>
     <sourceAnchor xmi:type="notation:IdentityAnchor" xmi:id="_ragGIAKnEfGPs4GcdHu8KQ" id="(0.0,0.8888888888888888)"/>
     <targetAnchor xmi:type="notation:IdentityAnchor" xmi:id="_ragGIQKnEfGPs4GcdHu8KQ" id="(0.995850622406639,1.0)"/>
   </edges>
@@ -1041,8 +1041,8 @@
     </children>
     <styles xmi:type="notation:FontStyle" xmi:id="_pyS8wQKoEfGPs4GcdHu8KQ"/>
     <element xmi:type="uml:Dependency" href="2AA4Assignment1.uml#_pyRHkAKoEfGPs4GcdHu8KQ"/>
-    <bendpoints xmi:type="notation:RelativeBendpoints" xmi:id="_pyS8wgKoEfGPs4GcdHu8KQ" points="[1380, 175, -643984, -643984]$[1380, 580, -643984, -643984]$[1200, 580, -643984, -643984]$[1200, 700, -643984, -643984]"/>
-    <sourceAnchor xmi:type="notation:IdentityAnchor" xmi:id="_pykCgAKoEfGPs4GcdHu8KQ" id="(0.8780487804878049,1.0)"/>
+    <bendpoints xmi:type="notation:RelativeBendpoints" xmi:id="_pyS8wgKoEfGPs4GcdHu8KQ" points="[1380, 175, -643984, -643984]$[1380, 580, -643984, -643984]$[1360, 580, -643984, -643984]$[1200, 580, -643984, -643984]$[1200, 700, -643984, -643984]"/>
+    <sourceAnchor xmi:type="notation:IdentityAnchor" xmi:id="_pykCgAKoEfGPs4GcdHu8KQ" id="(0.8780487804878049,0.9925925925925926)"/>
     <targetAnchor xmi:type="notation:IdentityAnchor" xmi:id="_pykCgQKoEfGPs4GcdHu8KQ" id="(0.8,0.0)"/>
   </edges>
   <edges xmi:type="notation:Connector" xmi:id="_Ojd9sAVKEfGut_9z1ksuOQ" type="InterfaceRealization_Edge" source="_eqTT0AVJEfGut_9z1ksuOQ" target="_X7E4MAVIEfGut_9z1ksuOQ">
