@@ -13,6 +13,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Compile Java sources
+        working-directory: implementation_A1
+        run: |
+          mkdir -p build/classes
+          find . -name "*.java" > sources.txt
+          javac -d build/classes @sources.txt
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v3
         env:
@@ -23,3 +36,4 @@ jobs:
             -Dsonar.organization=jeremicmina
             -Dsonar.projectKey=jeremicMina_2AA4-Project-1
             -Dsonar.sources=.
+            -Dsonar.java.binaries=build/classes
