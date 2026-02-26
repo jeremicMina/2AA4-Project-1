@@ -1,7 +1,8 @@
 name: SonarCloud
+
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
 
 jobs:
@@ -17,6 +18,8 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
+          projectBaseDir: implementation_A1
           args: >
             -Dsonar.organization=jeremicmina
             -Dsonar.projectKey=jeremicMina_2AA4-Project-1
+            -Dsonar.sources=.
