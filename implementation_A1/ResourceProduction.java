@@ -55,6 +55,10 @@ public class ResourceProduction {
         }
 
         for (Tile t : producingTiles) {
+            // Adding the robber factor to skip over it so no production happens when robber is implemented
+            if(t == board.getRobberTile()){
+                continue; // This will allow the robber to block production
+            }
             Resource produced = Tile.getResource(t.getTerrain());
             if (produced == null) continue; // desert or non-producing
 
