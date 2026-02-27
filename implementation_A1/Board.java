@@ -14,6 +14,9 @@ public class Board {
     private List<Intersection> intersections = new ArrayList<>();
     private List<Edge> edges = new ArrayList<>();
 
+    //Introducing the robberTile that will track the robber position within the tiles
+    private Tile robberTile;
+
     /**
      * Board constructor to create a map where the CATAN game will be hosted
      * We will use the Board config class to maintain SRP when creating the
@@ -21,6 +24,14 @@ public class Board {
      */
     public Board() {
         BoardConfig.buildMap(tiles, intersections, edges);
+
+        //Assigning the terrain desert to the robber tile through a for loop over all the tiles
+        for (Tile t : tiles) {
+            if (t.getTerrain() == Terrain.DESERT) {
+                robberTile = t;
+                break;
+            }
+        }
     }
 
     // Getter method to return the list of tiles per token
@@ -140,5 +151,21 @@ public class Board {
             if (p.equals(eb.getOwner())) return true;
         }
         return false;
+    }
+
+    /**
+     * Getter method to return the tile where the robber is at
+     * @return the tile where the robber is at
+     */
+    public Tile getRobberTile(){
+        return robberTile;
+    }
+
+    /**
+     * Setter method that is used to set the robber in a tile
+     * @param robberTile teh tile where the robber is at
+     */
+    public void setRobberTile(Tile robberTile) {
+        this.robberTile = robberTile;
     }
 }
