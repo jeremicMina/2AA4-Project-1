@@ -10,22 +10,4 @@ public enum Terrain {
     FIELDS,
     PASTURE,
     DESERT;
-//
-//    private final Resource resource;
-//
-//    /**
-//     * Constrctor Terrain associated with the resource it produces
-//     * @param resource
-//     */
-//    Terrain(Resource resource) {
-//        this.resource = resource;
-//    }
-//
-//    /**
-//     * Getter method to return the resource of the terrain, will be implemented in the resourceProduction class
-//     * @return
-//     */
-//    public Resource getResource() {
-//        return resource;
-//    }
 }
