@@ -159,19 +159,54 @@ public class ResourceProduction {
      */
     private void discardRandomCards(Player p, int amount) {
 
+        // Creating a pool of resources that the player has
         List<Resource> pool = new ArrayList<>();
 
+        // Adding the resources existant to the pool of resources for that player
         for (Resource r : Resource.values()) {
             for (int i = 0; i < p.getResourceCount(r); i++) {
                 pool.add(r);
             }
         }
-
+        // Shuffling the resources so they are all mixed instead of having them listed one after the other
         java.util.Collections.shuffle(pool);
 
+        // Spending the resources set by the amount passed as param
         for (int i = 0; i < amount && i < pool.size(); i++) {
             resources.spendResources(1, p, pool.get(i));
         }
+    }
+
+    /**
+     * stealRandomCard is a method that picks a random card and takes it away from the victim
+     * player and gives it to the thief.
+     * @param thief Player that will get the benefit of the random card
+     * @param victim Player that will have to give up one of his random cards
+     */
+    private void stealRandomCard(Player thief, Player victim) {
+
+        //Creating a list of resources from the victim cards
+        List<Resource> victimCards = new ArrayList<>();
+
+        // Adding the resources to the victimCards
+        for (Resource r : Resource.values()) {
+            for (int i = 0; i < victim.getResourceCount(r); i++) {
+                victimCards.add(r);
+            }
+        }
+
+        // Checking that the list has resources for the victim player
+        if (victimCards.isEmpty()) return;
+
+        // Shuffling the victim cards so they all well mixed before picking one of them
+        java.util.Collections.shuffle(victimCards);
+
+        // Picking the first card as the random card that will be stolen
+        Resource stolen = victimCards.get(0);
+
+        // Disptaching the card from the victim to the thief
+        resources.spendResources(1, victim, stolen);
+        resources.giveResources(1, thief, stolen);
     }
 
 }
