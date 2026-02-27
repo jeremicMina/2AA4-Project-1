@@ -208,5 +208,4 @@ public class ResourceProduction {
         resources.spendResources(1, victim, stolen);
         resources.giveResources(1, thief, stolen);
     }
-
 }

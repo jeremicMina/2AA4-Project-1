@@ -66,7 +66,7 @@ public class Game {
 
     // The simulation of each turn of each player passed as paramter to the method
     private void playTurn(Player currentPlayer) {
-        boolean produced = production.produce(orange, white, red, blue);
+        boolean produced = production.produce(currentPlayer, List.of(orange, white, red, blue));
 
         System.out.println("=== Round " + currentRound + ", " + currentPlayer.getColor() + "'s turn ===");
         if (produced) System.out.println("Resources produced for eligible settlements/cities.");
