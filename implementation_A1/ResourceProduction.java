@@ -1,7 +1,4 @@
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * ResourceProduction is a class that takes the dice, board and resources to generate methods like produce
@@ -30,9 +27,15 @@ public class ResourceProduction {
      * @param players a list of players in the game (production affects all players)
      * @return true if resources were successfully produced and distributed; false otherwise
      */
-    public boolean produce(List<Player> players) {
+    public boolean produce(Player currentPlayer, List<Player> players) {
         //Rolling the dice object passed along
         int rollSum = dice.roll();
+
+        // Send the game flow to the handleRobber method if rolled a 7
+        if (rollSum == 7) {
+            handleRobber(currentPlayer, players);
+            return false;
+        }
 
         // 1) Find producing tiles
         List<Tile> producingTiles = board.getTilesByToken(rollSum);
@@ -105,8 +108,47 @@ public class ResourceProduction {
         return true;
     }
 
-    // Overloading the produce method to accomodate for when the method is passed with the 4 players as params
-    public boolean produce(Player orange, Player white, Player red, Player blue) {
-        return produce(List.of(orange, white, red, blue));
+    /**
+     * handleRobber is a method that gets implemented when rolling a 7 and takes as param
+     * the list of the players, then deducts half of the cards out of the players that hold
+     * 7 or more cards, as well as moves the robber to a random tile and choses the victim player
+     * if applicable and steals a card from him.
+     *
+     * @param currentPlayer
+     * @param players       the list of the players participating in the game
+     */
+    private void handleRobber(Player currentPlayer, List<Player> players) {
+
+        // 1. Discard half if >7 cards
+        for (Player p : players) {
+            int total = p.totalResourceCards();
+            if (total > 7) {
+                int toDiscard = total / 2; // floor automatically
+                discardRandomCards(p, toDiscard);
+            }
+        }
+
+        // 2. Move robber randomly
+        List<Tile> allTiles = board.getTiles();
+        Tile newTile = allTiles.get(new java.util.Random().nextInt(allTiles.size()));
+        board.setRobberTile(newTile);
+
+        // 3. Determine eligible victims
+        List<Player> eligible = new ArrayList<>();
+
+        for (Intersection i : newTile.getIntersections()) {
+            Player owner = i.getOwner();
+            if (owner != null && !eligible.contains(owner)) {
+                eligible.add(owner);
+            }
+        }
+
+        if (eligible.isEmpty()) return;
+
+        // 4. Random victim
+        Player victim = eligible.get(new java.util.Random().nextInt(eligible.size()));
+
+        // 5. Random steal
+        stealRandomCard(players.get(0), victim);
     }
 }
