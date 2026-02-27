@@ -151,4 +151,27 @@ public class ResourceProduction {
         // 5. Random steal
         stealRandomCard(players.get(0), victim);
     }
+
+    /**
+     * discardRandomCard is a method used to discard half rounded down the number of cards randomly
+     * @param p the player that will be deducted cards
+     * @param amount the amount of cards that should be discarded from the player p
+     */
+    private void discardRandomCards(Player p, int amount) {
+
+        List<Resource> pool = new ArrayList<>();
+
+        for (Resource r : Resource.values()) {
+            for (int i = 0; i < p.getResourceCount(r); i++) {
+                pool.add(r);
+            }
+        }
+
+        java.util.Collections.shuffle(pool);
+
+        for (int i = 0; i < amount && i < pool.size(); i++) {
+            resources.spendResources(1, p, pool.get(i));
+        }
+    }
+
 }
