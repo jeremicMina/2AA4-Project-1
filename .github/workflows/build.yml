@@ -8,12 +8,14 @@ on:
 jobs:
   sonarcloud:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up JDK
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -23,8 +25,7 @@ jobs:
         working-directory: implementation_A1
         run: |
           mkdir -p build/classes
-          find . -name "*.java" > sources.txt
-          javac -d build/classes @sources.txt
+          javac -d build/classes $(git ls-files '*.java')
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v3
@@ -36,4 +37,5 @@ jobs:
             -Dsonar.organization=jeremicmina
             -Dsonar.projectKey=jeremicMina_2AA4-Project-1
             -Dsonar.sources=.
+            -Dsonar.exclusions=**/.idea/**,**/out/**
             -Dsonar.java.binaries=build/classes
