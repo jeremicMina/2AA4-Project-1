@@ -25,8 +25,9 @@ jobs:
         working-directory: implementation_A1
         run: |
           mkdir -p build/classes
-          javac -d build/classes $(git ls-files '*.java')
-
+          find . -name "*.java" > sources.txt
+          javac -d build/classes @sources.txt
+      
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v3
         env:
