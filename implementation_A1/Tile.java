@@ -11,6 +11,9 @@ public final class Tile {
     private int token;
     private int tileID;
 
+    private int q;
+    private int r;
+    private int s;
     /**
      * Tile constructor needs an Id, a type Terrain to define what type the tile will have as well as a token
      * that will be used for further implementation, and a list of the intersections that the tile will border.
@@ -24,6 +27,9 @@ public final class Tile {
         this.terrain = terrain;
         this.token = token;
         this.intersections = intersections;
+        this.q = q;
+        this.r = r;
+        this.s = -q - r;
     }
     // Getter method to return the intersections of the tile
     List<Intersection> getIntersections() {
@@ -41,6 +47,12 @@ public final class Tile {
     int getTileID() {
         return tileID;
     }
+
+    int getQ() {return q;}
+
+    int getR() {return r;}
+
+    int getS() {return s;}
 
     /**
      * Getter method to get the resource produced by that terrain
