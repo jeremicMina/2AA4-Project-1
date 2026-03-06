@@ -1,4 +1,6 @@
 import java.util.*;
+import java.io.FileWriter;
+import java.io.IOException;
 
 /**
  * The game class implements one instance and encapsulates one simulation of the game through keeping track
@@ -45,6 +47,8 @@ public class Game {
 
         currentRound = 0;
         setupInitialPlacements();
+        // calls method that will write JSON file
+        writeJson("gameState.json");
     }
 
     // Start game method to keep playing until the maxround is hit
@@ -323,4 +327,50 @@ public class Game {
         RunnableAction(Runnable r) { this.r = r; }
         void run() { r.run(); }
     }
+
+    // exports the board tile configuration to an external JSON file
+
+    private void writeJson(String fileName) {
+    List<Tile> tiles = board.getTiles();
+
+    try (FileWriter writer = new FileWriter(fileName)) {
+        StringBuilder json = new StringBuilder();
+
+        json.append("{\n");
+        json.append("  \"tiles\": [\n");
+
+        for (int i = 0; i < tiles.size(); i++) {
+            Tile tile = tiles.get(i);
+
+            json.append("    { ");
+            json.append("\"q\": ").append(tile.getQ()).append(", ");
+            json.append("\"s\": ").append(tile.getS()).append(", ");
+            json.append("\"r\": ").append(tile.getR()).append(", ");
+
+            if (tile.getTerrain() == Terrain.DESERT) {
+                json.append("\"resource\": null, ");
+                json.append("\"number\": null");
+            } else {
+                json.append("\"resource\": \"").append(tile.getTerrain()).append("\", ");
+                json.append("\"number\": ").append(tile.getToken());
+            }
+
+            json.append(" }");
+
+            if (i < tiles.size() - 1) {
+                json.append(",");
+            }
+            json.append("\n");
+        }
+
+        json.append("  ]\n");
+        json.append("}\n");
+
+        writer.write(json.toString());
+        System.out.println("JSON file written to " + fileName);
+
+    } catch (IOException e) {
+        System.out.println("Could not write JSON file: " + e.getMessage());
+    }
+   
 }
