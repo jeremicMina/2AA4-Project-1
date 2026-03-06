@@ -85,6 +85,8 @@ final class BoardConfig {
         for (int tileId = 0; tileId < 19; tileId++) {
             List<Intersection> corners = tileCorners.get(tileId);
 
+            Axial a = tileCoords.get(tileId);
+
             Tile tile = new Tile(tileId, terrainById[tileId], tokenById[tileId], corners);
 
             for (Intersection inter : corners) {
