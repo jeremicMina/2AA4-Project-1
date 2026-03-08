@@ -133,7 +133,7 @@ public class ResourcesTests {
         // ask for 5 rsource when stock is 19 -> true here
         Map<Resource, Integer> demand = new EnumMap<>(Resource.class);
         for (Resource r : Resource.values()) { demand.put(r, 5); }
-        assertTrue("canProvideAll should return true when demand is within bank stock", bank.canProvideAll(demand))
+        assertTrue("canProvideAll should return true when demand is within bank stock", bank.canProvideAll(demand));
 
         //ask for 20 ORE when the bank only has 19 -> return false
         for (Resource r : Resource.values()) { demand.put(r, 0); } //put all demands to zero
