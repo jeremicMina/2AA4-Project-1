@@ -32,10 +32,9 @@ public class ResourceProductionTests {
 
     /**
      * HELPER: create a fake Dice that always returns a fixed number
+     * do not throw the object away after
      */
-    private Dice fixedDice(int fixedRoll) {
-        new Dice() { public int roll() { return fixedRoll; }
-    }
+    private Dice fixedDice(int fixedRoll) { return () -> fixedRoll; }
 
     /**
      * HELPER: find a free intersection on a specific tile
