@@ -57,10 +57,10 @@ public class ResourcesTests {
 
         //P3
         //rest player to avoid affects of prvevious test
-        player2 = new Player(Color.WHITE, 21);
-        boolean result2 = bank.giveResources(19, player2, Resource.ORE);
+        player = new Player(Color.WHITE, 21);
+        boolean result2 = bank.giveResources(19, player, Resource.ORE);
         assertTrue("Giving exactly 19 ORE which is the full bank stock should succeed", result2);
-        assertEquals("Player should have all 19 ORE after draining our bank", 19, player2.getResourceCount(Resource.ORE));
+        assertEquals("Player should have all 19 ORE after draining our bank", 19, player.getResourceCount(Resource.ORE));
     }
 
     /**
