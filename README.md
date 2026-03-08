@@ -18,6 +18,7 @@ a good example of a commit message: “fix rubber (#4)”.  fix is tag, rubber i
 - refactor : changed the existing features or behaviour
 - test : tested, updated, added test cases
 - docs :  comments, README, report notes, changed indescriptive names, formatting..
+- create: creating new file
 
 # connecting Kanban tasks to commits
 simply use #ID of the task
