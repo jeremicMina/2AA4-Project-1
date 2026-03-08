@@ -66,11 +66,11 @@ public class ResourceProductionTests {
     public void test_produce_noOutput() {
         // P1: roll 7, no tile has token 7 in default board (since 7 triggers robber and has not production) -> false
         ResourceProduction resourceP = new ResourceProduction(fixedDice(7), bank, board);
-        assertFalse("produce should return false when no tile has the rolled token number 7", resourceP.produce(p1, p2, p3, p4));
+        assertFalse("produce should return false when no tile has the rolled token number 7", resourceP.produce(p1, List.of(p1, p2, p3, p4)));
 
         // P2: roll 6, token 6 tiles exist but nobody has placed a settlement yet -> false
             resourceP = new ResourceProduction(fixedDice(6), bank, board);
-        assertFalse("produce should return false when matching tiles exist but no player occupies", resourceP.produce(p1, p2, p3, p4));
+        assertFalse("produce should return false when matching tiles exist but no player occupies", resourceP.produce(p1, List.of(p1, p2, p3, p4)));
     }
 
     // =================================================================
@@ -100,7 +100,7 @@ public class ResourceProductionTests {
         board.buildSettlement(p1, node, true); // it's an initial placement so no road needed
         int before = p1.getResourceCount(expectedResource);
         ResourceProduction resourceP = new ResourceProduction(fixedDice(6), bank, board);
-        boolean produced = resourceP.produce(p1, p2, p3, p4);
+        boolean produced = resourceP.produce(p1, List.of(p1, p2, p3, p4));
 
         assertTrue("produce should return true when a player has a settlement on a token6 tile", produced);
         assertEquals("Settlement should yield exactly 1 resource" + expectedResource, before + 1, p1.getResourceCount(expectedResource));
@@ -109,7 +109,7 @@ public class ResourceProductionTests {
         board.buildCity(p1, node); // upgrade settlement to city
         int beforeCity = p1.getResourceCount(expectedResource);
         resourceP = new ResourceProduction(fixedDice(6), bank, board);
-        resourceP.produce(p1, p2, p3, p4);
+        resourceP.produce(p1, List.of(p1, p2, p3, p4));
 
         assertEquals("City must yield exactly 2 " + expectedResource + " (it's double a settlement)", beforeCity + 2, p1.getResourceCount(expectedResource));
     }
