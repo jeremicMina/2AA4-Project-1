@@ -126,6 +126,6 @@ public class PlayerTests {
         player.recordSettlementBuilt(0);  // first node
         player.recordSettlementBuilt(53); // last node on Catan board
 
-        player.recordCityBuilt());
+        player.recordCityBuilt();
     }
 }
