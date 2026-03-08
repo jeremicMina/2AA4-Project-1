@@ -15,6 +15,7 @@ import org.junit.runners.Suite;
         TileTests.class,
         BoardTests.class,
         ResourceProductionTests.class,
+        CommandParserTest.class,
 })
 
 public class CatanTestSuite {}
