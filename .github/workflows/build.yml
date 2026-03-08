@@ -25,9 +25,50 @@ jobs:
         working-directory: implementation_A1
         run: |
           mkdir -p build/classes
-          find . -name "*.java" > sources.txt
+          # find all JUnit jars so javac can resolve org.junit.* imports
           JUNIT_LIBRARRY_CLASSPATH=$(find . -name "*.jar" | tr '\n' ':')
+          # collect every .java file (both source and tests)
+          find . -name "*.java" > sources.txt
+          # compile all together
           javac -cp "$JUNIT_LIBRARRY_CLASSPATH" -d build/classes @sources.txt
+
+      - name: Download JaCoCo agent
+        working-directory: implementation_A1
+        run: |
+          #JaCoCo: standatd java covg tol that is readable by SonarCloud
+          #download agent jar which instruments bytecode at runtime to track which lines get executed in test
+          curl -L https://repo1.maven.org/maven2/org/jacoco/org.jacoco.agent/0.8.11/org.jacoco.agent-0.8.11-runtime.jar \
+               -o jacoco-agent.jar
+  
+          #download CLI tool converting raw .exec to XML
+          curl -L https://repo1.maven.org/maven2/org/jacoco/org.jacoco.cli/0.8.11/org.jacoco.cli-0.8.11-nodeps.jar \
+               -o jacoco-cli.jar
+      
+      - name: Run tests with JaCoCo coverage
+        working-directory: implementation_A1
+        run: |
+          JUNIT_LIBRARRY_CLASSPATH=$(find . -name "*.jar" ! -name "jacoco*.jar" | tr '\n' ':')
+          
+          # -javagent tells JVM to attach JaCoCo before running
+          # it produces destfile=jacoco.exec as a raw binary coverage data file
+          # org.junit.runner.JUnitCore is the JUnit 4 test runner
+          # CatanTestSuite must be run that covers all the tests
+          java -javaagent:jacoco-agent.jar=destfile=jacoco.exec \
+              -cp "$JUNIT_LIBRARRY_CLASSPATH:build/classes" \
+              org.junit.runner.JUnitCore \
+              CatanTestSuite
+            
+      - name: Generate JaCoCo XML report
+        working-directory: implementation_A1
+        run: |
+          #convert raw jacoco.exec binary into jacoco.xml that is readable by SonarCloud
+          # --classfiles = where compiled .class files are
+          # --sourcefiles = where .java source files are
+          java -jar jacoco-cli.jar report jacoco.exec \
+               --classfiles build/classes \
+               --sourcefiles . \
+               --xml jacoco.xml
+            
       
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v3
@@ -42,3 +83,4 @@ jobs:
             -Dsonar.exclusions=**/.idea/**,**/out/**
             -Dsonar.java.binaries=build/classes
             -Dsonar.java.libraries=lib/*.jar
+            -Dsonar.coverage.jacoco.xmlReportPaths=jacoco.xml
