@@ -26,7 +26,8 @@ jobs:
         run: |
           mkdir -p build/classes
           find . -name "*.java" > sources.txt
-          javac -d build/classes @sources.txt
+          JUNIT_LIBRARRY_CLASSPATH=$(find . -name "*.jar" | tr '\n' ':')
+          javac -cp "$JUNIT_LIBRARRY_CLASSPATH" -d build/classes @sources.txt
       
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@v3
@@ -40,3 +41,4 @@ jobs:
             -Dsonar.sources=.
             -Dsonar.exclusions=**/.idea/**,**/out/**
             -Dsonar.java.binaries=build/classes
+            -Dsonar.java.libraries=lib/*.jar
