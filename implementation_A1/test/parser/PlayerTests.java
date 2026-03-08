@@ -114,22 +114,18 @@ public class PlayerTests {
     // =================================================================
 
     /**
-     * TEST: no exception thrown
+     * TEST: no exception thrown, if there is test fails
      * PURPOSE: calling road + settlement + city methods
      */
     @Test(timeout = TIMEOUT)
     public void test4_recordMethods() {
-        assertDoesNotThrow(() -> {
-            player.recordRoadBuilt(0);   // edge ID 0 is first possible edge
-            player.recordRoadBuilt(10);  // edge ID somewhere in middle
-            player.recordRoadBuilt(71);  // edge ID 71 is last edge on board
-        });
+        player.recordRoadBuilt(0);   // edge ID 0 is first possible edge
+        player.recordRoadBuilt(10);  // edge ID somewhere in middle
+        player.recordRoadBuilt(71);  // edge ID 71 is last edge on board
 
-        assertDoesNotThrow(() -> {
-            player.recordSettlementBuilt(0);  // first node
-            player.recordSettlementBuilt(53); // last node on Catan board
-        });
+        player.recordSettlementBuilt(0);  // first node
+        player.recordSettlementBuilt(53); // last node on Catan board
 
-        assertDoesNotThrow(() -> player.recordCityBuilt());
+        player.recordCityBuilt());
     }
 }
