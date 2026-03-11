@@ -56,7 +56,7 @@ jobs:
           java -javaagent:jacoco-agent.jar=destfile=jacoco.exec \
               -cp "$JUNIT_LIBRARRY_CLASSPATH:build/classes" \
               org.junit.runner.JUnitCore \
-              test.CatanTestSuite
+              CatanTestSuite
             
       - name: Generate JaCoCo XML report
         working-directory: implementation_A1
