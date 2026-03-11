@@ -112,5 +112,10 @@ public class ResourceProductionTests {
         resourceP.produce(p1, List.of(p1, p2, p3, p4));
 
         assertEquals("City must yield exactly 2 " + expectedResource + " (it's double a settlement)", beforeCity + 2, p1.getResourceCount(expectedResource));
+
+        //drain the expectedResources of the bank by giving them to 1 player so canProvideAll returns false inside produce()
+        bank.giveResources(16, p1, expectedResource);
+        ResourceProduction resourceProdDrained = new ResourceProduction(fixedDice(6), bank, board);
+        assertFalse("produce should return false when bank can't cover demand", resourceProdDrained.produce(p1, List.of(p1, p2, p3, p4)));
     }
 }
