@@ -1,5 +1,3 @@
-package test;
-
 import org.junit.*;
 import static org.junit.Assert.*;
 import java.util.*;
@@ -39,7 +37,7 @@ public class BoardTests {
      * verify the BoardConfig generated the correct structure
      */
     @Test(timeout = TIMEOUT)
-    public void test_board_structure() {
+    public void test15_board_structure() {
         assertEquals("Standard Catan board must have 19 tiles", 19, board.getTiles().size());
         assertEquals("Standard Catan board must have 54 intersections", 54, board.getIntersections().size());
         assertEquals("Standard Catan board must have 72 edges (slots for roads)", 72, board.getEdges().size());
@@ -58,7 +56,7 @@ public class BoardTests {
      * P1 + P2 + P3 + P4
      */
     @Test(timeout = TIMEOUT)
-    public void test_buildSettlement() {
+    public void test16_buildSettlement() {
         // P1: initial placement on a free node -> succeed
         Intersection target = board.getIntersections().get(0);
         boolean result = board.buildSettlement(p1, target, true);
@@ -97,7 +95,7 @@ public class BoardTests {
      * P1 + P2 + P3
      */
     @Test(timeout = TIMEOUT)
-    public void test_buildRoad() {
+    public void test17_buildRoad() {
         //place p1 settlement to have a valid connection point
         Intersection node = board.getIntersections().get(0);
         board.buildSettlement(p1, node, true);
@@ -136,7 +134,7 @@ public class BoardTests {
      * TEST: buildCity enforces all upgrade rules for city
      */
     @Test(timeout = TIMEOUT)
-    public void test_buildCity() {
+    public void test18_buildCity() {
         Intersection node = board.getIntersections().get(0);
         board.buildSettlement(p1, node, true);
 

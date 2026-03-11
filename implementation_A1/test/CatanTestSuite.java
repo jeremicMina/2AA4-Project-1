@@ -1,8 +1,6 @@
-package test;
-
 import org.junit.runner.RunWith;
 import org.junit.runners.Suite;
-import test.parser.CommandParserTest;
+import parser.CommandParserTest;
 
 //=========================
 //CatanTestSuite.java
@@ -12,13 +10,13 @@ import test.parser.CommandParserTest;
 @RunWith(Suite.class)
 @Suite.SuiteClasses({
         //run in the order below
-        PlayerTests.class,
-        ResourcesTests.class,
-        DiceTests.class,
-        TileTests.class,
-        BoardTests.class,
-        ResourceProductionTests.class,
-        CommandParserTest.class,
+        PlayerTests.class,             //file1: test 1-4
+        ResourcesTests.class,          //file2: test 5-8
+        DiceTests.class,               //file3: test 9-11
+        TileTests.class,               //file4: test 12-14
+        BoardTests.class,              //file5: test 15-18
+        ResourceProductionTests.class, //file6: test 19-20
+        CommandParserTest.class,       //file7: test
 })
 
 public class CatanTestSuite {}

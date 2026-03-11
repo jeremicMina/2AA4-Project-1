@@ -1,5 +1,3 @@
-package test;
-
 import org.junit.*;
 import static org.junit.Assert.*;
 import java.util.*;
@@ -32,7 +30,7 @@ public class TileTests {
      * null would crash any for-each loop in the production code
      */
     @Test(timeout = TIMEOUT)
-    public void test_tile_getters() {
+    public void test12_tile_getters() {
         List<Intersection> emptyList = new ArrayList<>();
         Tile tile = new Tile(5, Terrain.FOREST, 6, emptyList);
 
@@ -57,7 +55,7 @@ public class TileTests {
      * if mapping is wrong, production would give out the wrong resource
      */
     @Test(timeout = TIMEOUT)
-    public void test_getResource_producingTerrains() {
+    public void test13_getResource_producingTerrains() {
         assertEquals("MOUNTAIN must produce ORE", Resource.ORE, Tile.getResource(Terrain.MOUNTAIN));
         assertEquals("FOREST must produce LUMBER", Resource.LUMBER, Tile.getResource(Terrain.FOREST));
         assertEquals("HILLS must produce BRICK", Resource.BRICK, Tile.getResource(Terrain.HILLS));
@@ -75,7 +73,7 @@ public class TileTests {
      * P2 -> desert must return null
      */
     @Test(timeout = TIMEOUT)
-    public void test_getResource_desert_returnsNull() {
+    public void test14_getResource_desert_returnsNull() {
         assertNull("DESERT should return null because it produces no resource", Tile.getResource(Terrain.DESERT));
     }
 }

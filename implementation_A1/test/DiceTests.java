@@ -1,5 +1,3 @@
-package test;
-
 import org.junit.*;
 import static org.junit.Assert.*;
 import java.util.Random;
@@ -32,7 +30,7 @@ public class DiceTests {
      * partition P3 -> two dice with the same seed must produce identical sequences
      */
     @Test(timeout = TIMEOUT)
-    public void test_regularDice() {
+    public void test9_regularDice() {
         // P1: 6-sided die, 1000 rolls -> every result must be in [1..6]
         // 1000 rolls gives statistical confidence the range is always respected
         RegularDice die = new RegularDice(6, new Random(0));
@@ -67,7 +65,7 @@ public class DiceTests {
      * ensure the wrapper doesnt add anything unexpectedly
      */
     @Test(timeout = TIMEOUT)
-    public void test_multiDice_withDice() {
+    public void test10_multiDice_withDice() {
         // P1: two d6, sum must always be in [2..12]
         MultiDice md = new MultiDice();
         md.addDice(new RegularDice(6, new Random(1)));
@@ -100,7 +98,7 @@ public class DiceTests {
      * P3 -> boundary of 0, if MultiDice tries to iterate over an empty list and crashes, this catches it
      */
     @Test(timeout = TIMEOUT)
-    public void test_multiDice_boundary_noDice() {
+    public void test11_multiDice_boundary_noDice() {
         MultiDice md = new MultiDice(); // add NOTHING
 
         assertEquals("BOUNDARY: MultiDice with no dice should return 0 (sum of nothing)", 0, md.roll());

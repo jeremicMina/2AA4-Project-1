@@ -1,5 +1,3 @@
-package test;
-
 import org.junit.*;
 import static org.junit.Assert.*;
 import java.util.*;
@@ -65,7 +63,7 @@ public class ResourceProductionTests {
      *          no demand is generated so produce() must also return false
      */
     @Test(timeout = TIMEOUT)
-    public void test_produce_noOutput() {
+    public void test19_produce_noOutput() {
         // P1: roll 7, no tile has token 7 in default board (since 7 triggers robber and has not production) -> false
         ResourceProduction resourceP = new ResourceProduction(fixedDice(7), bank, board);
         assertFalse("produce should return false when no tile has the rolled token number 7", resourceP.produce(p1, List.of(p1, p2, p3, p4)));
@@ -85,7 +83,7 @@ public class ResourceProductionTests {
      * TEST: produce() gives the correct amount of resources when conditions met
      */
     @Test(timeout = TIMEOUT)
-    public void test_produce_withOutput() {
+    public void test20_produce_withOutput() {
         // find a token 6 tile to place settlements on
         List<Tile> token6Tiles = board.getTilesByToken(6);
         assertFalse("we need at least one tile with token 6 to exist", token6Tiles.isEmpty());
