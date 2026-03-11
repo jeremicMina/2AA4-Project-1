@@ -330,48 +330,119 @@ public class Game {
 
     // exports the board tile configuration to an external JSON file
 
-    private void writeJson(String fileName) {
-    List<Tile> tiles = board.getTiles();
+    /**
+     * Turns board state into a JSON file for visualizer
+     * Includes tiles, settlements, cities (roads avoided because of nodes not matching)
+     */
+    public void writeJson(String fileName) {
+        List<Tile> tiles = board.getTiles();
 
-    try (FileWriter writer = new FileWriter(fileName)) {
-        StringBuilder json = new StringBuilder();
+        try (FileWriter writer = new FileWriter(fileName)) {
+            StringBuilder json = new StringBuilder();
 
-        json.append("{\n");
-        json.append("  \"tiles\": [\n");
+            json.append("{\n");
 
-        for (int i = 0; i < tiles.size(); i++) {
-            Tile tile = tiles.get(i);
+            // Tiles section
+            json.append("  \"tiles\": [\n");
 
-            json.append("    { ");
-            json.append("\"q\": ").append(tile.getQ()).append(", ");
-            json.append("\"s\": ").append(tile.getS()).append(", ");
-            json.append("\"r\": ").append(tile.getR()).append(", ");
+            for (int i = 0; i < tiles.size(); i++) {
+                Tile tile = tiles.get(i);
 
-            if (tile.getTerrain() == Terrain.DESERT) {
-                json.append("\"resource\": null, ");
-                json.append("\"number\": null");
-            } else {
-                json.append("\"resource\": \"").append(tile.getTerrain()).append("\", ");
-                json.append("\"number\": ").append(tile.getToken());
+                json.append("    { ");
+                json.append("\"q\": ").append(tile.getQ()).append(", ");
+                json.append("\"s\": ").append(tile.getS()).append(", ");
+                json.append("\"r\": ").append(tile.getR()).append(", ");
+
+                if (tile.getTerrain() == Terrain.DESERT) {
+                    json.append("\"resource\": null, ");
+                    json.append("\"number\": null");
+                }
+                else {
+                    json.append("\"resource\": \"").append(tile.getTerrain()).append("\", ");
+                    json.append("\"number\": ").append(tile.getToken());
+                }
+
+                json.append(" }");
+
+                if (i < tiles.size() - 1) {
+                    json.append(",");
+                }
+                json.append("\n");
             }
 
-            json.append(" }");
+            json.append("  ],\n");
 
-            if (i < tiles.size() - 1) {
-                json.append(",");
+            // Settlements section
+            json.append("  \"settlements\": [\n");
+
+            List<Intersection> intersections = board.getIntersections();
+            boolean firstSettlement = true;
+
+            for (Intersection inter : intersections) {
+                if (inter.getOwner() != null && !inter.isCity()) {
+                    if (!firstSettlement) {
+                        json.append(",\n");
+                    }
+
+                    json.append("    { ");
+                    json.append("\"node\": ").append(inter.getNodeID()).append(", ");
+                    json.append("\"player\": \"").append(inter.getOwner().getColor()).append("\"");
+                    json.append(" }");
+
+                    firstSettlement = false;
+                }
             }
-            json.append("\n");
+
+            json.append("\n  ],\n");
+
+            // Cities section
+            json.append("  \"cities\": [\n");
+
+            boolean firstCity = true;
+
+            for (Intersection inter : intersections) {
+                if (inter.getOwner() != null && inter.isCity()) {
+                    if (!firstCity) {
+                        json.append(",\n");
+                    }
+
+                    json.append("    { ");
+                    json.append("\"node\": ").append(inter.getNodeID()).append(", ");
+                    json.append("\"player\": \"").append(inter.getOwner().getColor()).append("\"");
+                    json.append(" }");
+
+                    firstCity = false;
+                }
+            }
+
+            json.append("\n  ],\n");
+
+            // Roads section (empty - topology mismatch)
+            json.append("  \"roads\": [\n");
+            json.append("  ]\n");
+
+            json.append("}\n");
+
+            writer.write(json.toString());
+            System.out.println("JSON file written to " + fileName);
+
         }
-
-        json.append("  ]\n");
-        json.append("}\n");
-
-        writer.write(json.toString());
-        System.out.println("JSON file written to " + fileName);
-
-    } catch (IOException e) {
-        System.out.println("Could not write JSON file: " + e.getMessage());
+        catch (IOException e) {
+            System.out.println("Could not write JSON file: " + e.getMessage());
+        }
     }
-   
-}
+
+    /**
+     * Get the human player (orange)
+     */
+    public Player getOrangePlayer() {
+        return orange;
+    }
+
+    /**
+     * Get the game board
+     */
+    public Board getBoard() {
+        return board;
+    }
 }
