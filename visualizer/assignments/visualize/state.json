@@ -1,0 +1,38 @@
+{
+  "tiles": [
+    { "q": 0, "s": 0, "r": 0, "resource": "FOREST", "number": 10 },
+    { "q": 0, "s": 0, "r": 0, "resource": "FIELDS", "number": 11 },
+    { "q": 0, "s": 0, "r": 0, "resource": "HILLS", "number": 8 },
+    { "q": 0, "s": 0, "r": 0, "resource": "MOUNTAIN", "number": 3 },
+    { "q": 0, "s": 0, "r": 0, "resource": "PASTURE", "number": 11 },
+    { "q": 0, "s": 0, "r": 0, "resource": "PASTURE", "number": 5 },
+    { "q": 0, "s": 0, "r": 0, "resource": "PASTURE", "number": 12 },
+    { "q": 0, "s": 0, "r": 0, "resource": "FIELDS", "number": 3 },
+    { "q": 0, "s": 0, "r": 0, "resource": "MOUNTAIN", "number": 6 },
+    { "q": 0, "s": 0, "r": 0, "resource": "FOREST", "number": 4 },
+    { "q": 0, "s": 0, "r": 0, "resource": "MOUNTAIN", "number": 6 },
+    { "q": 0, "s": 0, "r": 0, "resource": "FIELDS", "number": 9 },
+    { "q": 0, "s": 0, "r": 0, "resource": "FOREST", "number": 5 },
+    { "q": 0, "s": 0, "r": 0, "resource": "HILLS", "number": 9 },
+    { "q": 0, "s": 0, "r": 0, "resource": "HILLS", "number": 8 },
+    { "q": 0, "s": 0, "r": 0, "resource": "FIELDS", "number": 4 },
+    { "q": 0, "s": 0, "r": 0, "resource": null, "number": null },
+    { "q": 0, "s": 0, "r": 0, "resource": "FOREST", "number": 2 },
+    { "q": 0, "s": 0, "r": 0, "resource": "PASTURE", "number": 10 }
+  ],
+  "settlements": [
+    { "node": 4, "player": "RED" },
+    { "node": 6, "player": "ORANGE" },
+    { "node": 18, "player": "BLUE" },
+    { "node": 23, "player": "BLUE" },
+    { "node": 28, "player": "WHITE" },
+    { "node": 33, "player": "ORANGE" },
+    { "node": 39, "player": "WHITE" },
+    { "node": 44, "player": "RED" }
+  ],
+  "cities": [
+
+  ],
+  "roads": [
+  ]
+}
