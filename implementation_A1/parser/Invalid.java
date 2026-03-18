@@ -1,6 +1,13 @@
 package parser;
 
+/**
+ * invalid represents an unrecognized command input
+ *
+ * execute() and undo() are both empty because Invalid never reaches game since it's caught
+ */
+
 public class Invalid implements Command{
+
     private String ogInput;
 
     public Invalid(String ogInput) {
@@ -20,4 +27,10 @@ public class Invalid implements Command{
     public String toString() {
         return "INVALID: \"" + ogInput + "\"";
     }
+
+    @Override
+    public void execute() {}
+
+    @Override
+    public void undo() {}
 }
