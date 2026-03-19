@@ -1,5 +1,3 @@
-package parser;
-
 import org.junit.*;
 import static org.junit.Assert.*;
 
@@ -42,7 +40,7 @@ public class CommandParserTest {
         // Partition C: List command
         parser = new CommandParser();
         cmd = parser.parse("List");
-        assertTrue("Should parse List command into a List object", cmd instanceof List);
+        assertTrue("Should parse List command into a List object", cmd instanceof ListCards);
 
         // Partition D: case-insensitive command
         parser = new CommandParser();

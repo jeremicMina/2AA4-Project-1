@@ -1,4 +1,3 @@
-import parser.*;
 import java.util.*;
 import java.io.IOException;
 
@@ -208,7 +207,7 @@ public class Demonstrator {
                 turnEnded = true;
 
             }
-            else if (cmd instanceof parser.List) {
+            else if (cmd instanceof ListCards) {
                 System.out.println("Your resources:");
                 Player orangePlayer = game.getOrangePlayer();
                 for (Resource r : Resource.values()) {
