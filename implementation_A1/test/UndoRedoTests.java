@@ -52,35 +52,33 @@ public class UndoRedoTests {
         return null;
     }
 
-    // places a settlement at nodeId using initial placement rules so no road is needed
-    // does not spend resources, just sets up ownership state on the board
-    private void placeInitialSettlement(int nodeId) {
-        board.buildSettlement(player, intersectionById(nodeId), true);
-    }
-
-private int setupSettlementScenario() {
-    placeInitialSettlement(0);
-    giveRoadResources();
-    int neighbourId = -1;
-    for (Edge e : board.getEdges()) {
-        int a = e.getIntersection1().getNodeID();
-        int b = e.getIntersection2().getNodeID();
-        if (a == 0 || b == 0) {
-            board.buildRoad(player, e);
-            neighbourId = (a == 0) ? b : a;
-            break;
+    // finds the first edge touching node 0 and sets the player as its owner directly
+    // this satisfies the road connection check inside BuildSettlement.execute()
+    // without needing to go through the full board.buildRoad() flow
+    private void plantRoadAtNode0() {
+        for (Edge e : board.getEdges()) {
+            if (e.getIntersection1().getNodeID() == 0
+                    || e.getIntersection2().getNodeID() == 0) {
+                e.setOwner(player);
+                return;
+            }
         }
     }
-    giveSettlementResources();
-    return neighbourId;
-}
 
-    // full setup for a BuildRoad test:
-    // puts a settlement at node 0 so the edge is connected to a player piece,
+    // sets up everything needed for a BuildSettlement command to succeed at node 0:
+    // plants a road adjacent to node 0 so the connection rule passes,
+    // then gives the player settlement resources
+    private void setupSettlementAtNode0() {
+        plantRoadAtNode0();
+        giveSettlementResources();
+    }
+
+    // sets up everything needed for a BuildRoad command to succeed:
+    // places an initial settlement at node 0 so the edge is connected to a player piece,
     // then gives the player road resources
     // returns the first edge adjacent to node 0
     private Edge setupRoadScenario() {
-        placeInitialSettlement(0);
+        board.buildSettlement(player, intersectionById(0), true);
         giveRoadResources();
         for (Edge e : board.getEdges()) {
             int a = e.getIntersection1().getNodeID();
@@ -90,7 +88,7 @@ private int setupSettlementScenario() {
         throw new IllegalStateException("no edge adjacent to node 0 found");
     }
 
-    // full setup for a BuildCity test:
+    // sets up everything needed for a BuildCity command to succeed at node 0:
     // sets the player as owner of node 0 directly and makes sure isCity is false,
     // then gives the player city resources
     private void setupCityScenario() {
@@ -102,7 +100,7 @@ private int setupSettlementScenario() {
 
     // GROUP 1: tests for BuildSettlement execute()
     // Partitions:
-    // A) valid node with road connection and enough resources
+    // A) valid node with a road connection and enough resources
     // B) node id that does not exist on the board
 
     /**
@@ -111,10 +109,10 @@ private int setupSettlementScenario() {
      */
     @Test(timeout = TIMEOUT)
     public void test1_buildSettlement_execute_setsOwner() {
-        int target = setupSettlementScenario();
-        history.execute(new BuildSettlement(target, board, resources, player));
+        setupSettlementAtNode0();
+        history.execute(new BuildSettlement(0, board, resources, player));
         assertEquals("after execute, intersection owner should be the player",
-                player, intersectionById(target).getOwner());
+                player, intersectionById(0).getOwner());
     }
 
     /**
@@ -145,11 +143,11 @@ private int setupSettlementScenario() {
      */
     @Test(timeout = TIMEOUT)
     public void test3_buildSettlement_undo_clearsOwner() {
-        int target = setupSettlementScenario();
-        history.execute(new BuildSettlement(target, board, resources, player));
+        setupSettlementAtNode0();
+        history.execute(new BuildSettlement(0, board, resources, player));
         history.undo();
         assertNull("after undo, intersection owner should be null",
-                intersectionById(target).getOwner());
+                intersectionById(0).getOwner());
     }
 
     /**
@@ -158,9 +156,9 @@ private int setupSettlementScenario() {
      */
     @Test(timeout = TIMEOUT)
     public void test4_buildSettlement_undo_restoresBrick() {
-        int target = setupSettlementScenario();
+        setupSettlementAtNode0();
         int before = player.getResourceCount(Resource.BRICK);
-        history.execute(new BuildSettlement(target, board, resources, player));
+        history.execute(new BuildSettlement(0, board, resources, player));
         history.undo();
         assertEquals("BRICK should be back to what it was before execute",
                 before, player.getResourceCount(Resource.BRICK));
@@ -172,9 +170,9 @@ private int setupSettlementScenario() {
      */
     @Test(timeout = TIMEOUT)
     public void test5_buildSettlement_undo_restoresLumber() {
-        int target = setupSettlementScenario();
+        setupSettlementAtNode0();
         int before = player.getResourceCount(Resource.LUMBER);
-        history.execute(new BuildSettlement(target, board, resources, player));
+        history.execute(new BuildSettlement(0, board, resources, player));
         history.undo();
         assertEquals("LUMBER should be back to what it was before execute",
                 before, player.getResourceCount(Resource.LUMBER));
@@ -186,9 +184,9 @@ private int setupSettlementScenario() {
      */
     @Test(timeout = TIMEOUT)
     public void test6_buildSettlement_undo_restoresWool() {
-        int target = setupSettlementScenario();
+        setupSettlementAtNode0();
         int before = player.getResourceCount(Resource.WOOL);
-        history.execute(new BuildSettlement(target, board, resources, player));
+        history.execute(new BuildSettlement(0, board, resources, player));
         history.undo();
         assertEquals("WOOL should be back to what it was before execute",
                 before, player.getResourceCount(Resource.WOOL));
@@ -200,9 +198,9 @@ private int setupSettlementScenario() {
      */
     @Test(timeout = TIMEOUT)
     public void test7_buildSettlement_undo_restoresGrain() {
-        int target = setupSettlementScenario();
+        setupSettlementAtNode0();
         int before = player.getResourceCount(Resource.GRAIN);
-        history.execute(new BuildSettlement(target, board, resources, player));
+        history.execute(new BuildSettlement(0, board, resources, player));
         history.undo();
         assertEquals("GRAIN should be back to what it was before execute",
                 before, player.getResourceCount(Resource.GRAIN));
@@ -214,12 +212,12 @@ private int setupSettlementScenario() {
      */
     @Test(timeout = TIMEOUT)
     public void test8_buildSettlement_undo_clearsCityFlag() {
-        int target = setupSettlementScenario();
-        history.execute(new BuildSettlement(target, board, resources, player));
-        intersectionById(target).setCity(true); // force the flag on to make sure undo clears it
+        setupSettlementAtNode0();
+        history.execute(new BuildSettlement(0, board, resources, player));
+        intersectionById(0).setCity(true); // force the flag on to make sure undo clears it
         history.undo();
         assertFalse("undo should always reset isCity to false on the intersection",
-                intersectionById(target).isCity());
+                intersectionById(0).isCity());
     }
 
     /**
