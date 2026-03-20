@@ -22,19 +22,19 @@ public final class Edge {
         this.intersection2 = intersection2;
     }
     // Getter method to return the Edge ID
-    int getEdgeID() {
+    public int getEdgeID() {
         return edgeID;
     }
     // Setter method to set the Edge ID
-    void setEdgeID(int id) {
+    public void setEdgeID(int id) {
         this.edgeID = id;
     }
     // Getter method to return the Edge owner
-    Player getOwner() {
+    public Player getOwner() {
         return owner;
     }
     // Setter method to set the Edge owner player
-    void setOwner(Player owner) {
+    public void setOwner(Player owner) {
         this.owner = owner;
     }
     // Getter method to return the Edge first intersection
