@@ -14,7 +14,7 @@ import org.junit.runners.Suite;
         BoardTests.class,              //file5: test 15-18
         ResourceProductionTests.class, //file6: test 19-20
         CommandParserTest.class,       //file7: test
-        CommandHistoryTest.class,      //file8: test
+        UndoRedoTests.class,      //file8: test
 })
 public class CatanTestSuite {}
 
