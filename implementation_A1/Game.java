@@ -25,6 +25,14 @@ public class Game {
 
     private final Random randomizer;
 
+    // A3: CommandHistory for undo/redo (R3.1)
+    // One shared history instance covers all human-initiated commands so AI turns do NOT push to the history, only the human player's actions do.
+    private final CommandHistory commandHistory = new CommandHistory();
+
+    // A3: RuleBasedAgent for AI players (R3.2 + R3.3)
+    // All three AI players share the same agent instance; the agent is stateless between calls so sharing is safe.
+    private final RuleBasedAgent ruleBasedAgent;
+
     /**
      * The game instance constructor to initiate one game simulation
      * @param board the board where the game will be hosted
@@ -44,6 +52,9 @@ public class Game {
         white  = new Player(Color.WHITE, 20);
         red    = new Player(Color.RED, 21);
         blue   = new Player(Color.BLUE, 22);
+
+        // A3: create the rule-based agent that all AI players will use
+        ruleBasedAgent = new RuleBasedAgent(randomizer);
 
         currentRound = 0;
         setupInitialPlacements();
@@ -68,6 +79,37 @@ public class Game {
         }
     }
 
+
+    /**
+     * Executes a command through CommandHistory so it can be undone/redone.
+     * Only call this for human-player (ORANGE) actions.
+     * @param c the command to execute and record
+     */
+    public void executeCommand(Command c) {
+        commandHistory.execute(c);
+    }
+
+    /** Undoes the last human command. */
+    public void undoLastCommand() {
+        commandHistory.undo();
+    }
+
+    /** Redoes the last undone human command. */
+    public void redoLastCommand() {
+        commandHistory.redo();
+    }
+
+    /** @return true if there is something to undo */
+    public boolean canUndo() {
+        return commandHistory.canUndo();
+    }
+
+    /** @return true if there is something to redo */
+    public boolean canRedo() {
+        return commandHistory.canRedo();
+    }
+
+
     // The simulation of each turn of each player passed as paramter to the method
     private void playTurn(Player currentPlayer) {
         boolean produced = production.produce(currentPlayer, List.of(orange, white, red, blue));
@@ -76,37 +118,48 @@ public class Game {
         if (produced) System.out.println("Resources produced for eligible settlements/cities.");
         else System.out.println("No production this turn.");
 
-        if (currentPlayer.totalResourceCards() > 7) {
-            boolean spent = encourageSpending(currentPlayer);
-            if (!spent) System.out.println(currentPlayer.getColor() + " has >7 cards but could not build anything.");
-            pause(); // <- pause for visibility
-            return;
+        // AI players use the rule-based agent (R3.2 + R3.3)
+        if (currentPlayer != orange) {
+            playAiTurn(currentPlayer);
         }
+        // Human turn is driven by Demonstrator — nothing to do here in the simulator path
+        pause();
+    }
 
-        List<RunnableAction> actions = computeLegalActions(currentPlayer);
-        if (!actions.isEmpty()) {
-            RunnableAction chosen = actions.get(randomizer.nextInt(actions.size()));
-            chosen.run();
+    /**
+     * Runs an AI turn using the RuleBasedAgent.
+     *
+     * The agent evaluates all rules (constraints first, then value-add) and
+     * executes the highest-scoring action.  If the agent returns null (no valid
+     * action) we fall back to the old random-build logic so the game can still
+     * progress in edge cases.
+     *
+     * A3 note: AI actions are NOT pushed to CommandHistory because undo/redo is
+     * a human-player feature.  Allowing AI actions on the undo stack would let
+     * the human undo the AI's moves, which is not intended.
+     */
+    private void playAiTurn(Player p) {
+        // R3.3 constraint: if player has >7 cards, the agent's MustSpendRule fires first
+        Command action = ruleBasedAgent.selectAction(p, board, resources);
+
+        if (action != null) {
+            // The agent already printed which rule fired (inside RuleBasedAgent.selectAction)
+            action.execute();
+            log(p, "executed: " + action);
         } else {
-            System.out.println(currentPlayer.getColor() + " has no legal build action available.");
+            // Fallback: no rule fired, try any legal action randomly
+            List<RunnableAction> fallback = computeLegalActions(p);
+            if (!fallback.isEmpty()) {
+                fallback.get(randomizer.nextInt(fallback.size())).run();
+            } else {
+                log(p, "no legal action available.");
+            }
         }
-
-        pause(); // pause after each turn
     }
 
     // Pause method to run the simulation in slow mode so we can watch it live instead of running the full code all at once
     private void pause() {
         try { Thread.sleep(300); } catch (InterruptedException ignored) {}
-    }
-
-    // R1.8: when the player has 7 cards, we will use this method to encourage him to spend
-    private boolean encourageSpending(Player p) {
-        List<RunnableAction> actions = computeLegalActions(p);
-        if (actions.isEmpty()) return false;
-        RunnableAction chosen = actions.get(randomizer.nextInt(actions.size()));
-        chosen.run();
-        System.out.println("Player was encouraged to spend (>7 cards) and build something.");
-        return true;
     }
 
     // ComputeLegalActions is the method that is responsible to run the runnable action per player passed as parameter
