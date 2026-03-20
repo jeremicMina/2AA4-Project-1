@@ -35,6 +35,18 @@ public class Roll implements Command {
     private Map<Player, Map<Resource, Integer>> snapshot;
 
     /**
+     * no-arg constructor to be used by CommandParser
+     * creates a Roll marker that the game loop intercepts and executes directly
+     * execute() and undo() do nothing when context is null
+     */
+    public Roll() {
+        this.production = null;
+        this.resources = null;
+        this.currentPlayer = null;
+        this.allPlayers = null;
+    }
+
+    /**
      * constructor for a Roll command
      *
      * @param production    the ResourceProduction instance handeling dice roll + distribution
@@ -62,6 +74,10 @@ public class Roll implements Command {
      */
     @Override
     public void execute() {
+
+        // if no context injected Roll was created by parser as a signal only
+        if (production == null) return;
+
         //take a before-snapshot of every player's resource counts
         Map<Player, Map<Resource, Integer>> before = takeSnapshot();
 

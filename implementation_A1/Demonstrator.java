@@ -34,7 +34,7 @@ public class Demonstrator {
         System.out.println("Players: ORANGE (YOU), WHITE (AI), RED (AI), BLUE (AI)\n");
 
         // Setup parser
-        CommandParser parser = new CommandParser();
+        CommandParser parser = new CommandParser(board, resources, game.getOrangePlayer());
         Scanner scanner = new Scanner(System.in);
 
         System.out.println("Available commands:");

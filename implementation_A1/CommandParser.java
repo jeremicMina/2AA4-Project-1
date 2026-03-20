@@ -2,6 +2,36 @@ import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 
 public class CommandParser {
+
+    // context needed to create executable commands
+    private Board board;
+    private Resources resources;
+    private Player player;
+
+    /**
+     * default constructor for cases where commands don't need game context
+     * used by tests that only check parsing, not execution
+     */
+    public CommandParser() {
+        this.board = null;
+        this.resources = null;
+        this.player = null;
+    }
+
+    /**
+     * full constructor that injects game context so parsed commands
+     * can execute and undo against real game state
+     *
+     * @param board game board
+     * @param resources resource bank
+     * @param player player whose turn it is
+     */
+    public CommandParser(Board board, Resources resources, Player player) {
+        this.board = board;
+        this.resources = resources;
+        this.player = player;
+    }
+
     // Regex patterns for each command type
     private static final Pattern ROLL_PATTERN =
             Pattern.compile("^Roll$", Pattern.CASE_INSENSITIVE);
@@ -48,14 +78,14 @@ public class CommandParser {
         Matcher settlementMatcher = BUILD_SETTLEMENT_PATTERN.matcher(input);
         if (settlementMatcher.matches()) {
             int nodeId = Integer.parseInt(settlementMatcher.group(1));
-            return new BuildSettlement(nodeId);
+            return new BuildSettlement(nodeId, board, resources, player);
         }
 
         // Check BUILD CITY
         Matcher cityMatcher = BUILD_CITY_PATTERN.matcher(input);
         if (cityMatcher.matches()) {
             int nodeId = Integer.parseInt(cityMatcher.group(1));
-            return new BuildCity(nodeId);
+            return new BuildCity(nodeId, board, resources, player);
         }
 
         // Check BUILD ROAD
@@ -63,7 +93,7 @@ public class CommandParser {
         if (roadMatcher.matches()) {
             int fromNode = Integer.parseInt(roadMatcher.group(1));
             int toNode = Integer.parseInt(roadMatcher.group(2));
-            return new BuildRoad(fromNode, toNode);
+            return new BuildRoad(fromNode, toNode, board, resources, player);
         }
 
         // If nothing matched, return InvalidCommand

@@ -85,6 +85,24 @@ public class BuildRoad implements Command{
         }
     }
 
+    @Override
+    public void undo() {
+        // if execute() never succeeded nothing to undo
+        if (builtOn == null) {
+            return;
+        }
+
+        //remove road from the edge
+        builtOn.setOwner(null);
+
+        //return the resources to the bank
+        resources.giveResources(1, player, Resource.BRICK);
+        resources.giveResources(1, player, Resource.LUMBER);
+
+        //clear the snapshot so this command can't be undone twice
+        builtOn = null;
+    }
+
     /**
      * walks the board's edge list to find the edge with the two endpoints
      * match fromNodeId and toNodeId in either order and returns null if it doesn't exist
@@ -95,7 +113,7 @@ public class BuildRoad implements Command{
             int id2 = e.getIntersection2().getNodeID();
 
             //check both directions since edges are undirected
-            if ((id1==fromNodeId&&id2==toNodeId) || (id1==toNodeId&&id2==fromNodeId)) {
+            if ((id1 == fromNodeId && id2 == toNodeId) || (id1 == toNodeId && id2 == fromNodeId)) {
                 return e;
             }
         }
