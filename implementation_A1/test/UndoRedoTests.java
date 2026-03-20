@@ -58,30 +58,22 @@ public class UndoRedoTests {
         board.buildSettlement(player, intersectionById(nodeId), true);
     }
 
-    // finds the first edge touching nodeId, sets the player as its owner directly,
-    // and returns the id of the node on the other end so tests know where to build next
-    private int plantRoadAdjacentTo(int nodeId) {
-        for (Edge e : board.getEdges()) {
-            int a = e.getIntersection1().getNodeID();
-            int b = e.getIntersection2().getNodeID();
-            if (a == nodeId || b == nodeId) {
-                e.setOwner(player);
-                return (a == nodeId) ? b : a;
-            }
+private int setupSettlementScenario() {
+    placeInitialSettlement(0);
+    giveRoadResources();
+    int neighbourId = -1;
+    for (Edge e : board.getEdges()) {
+        int a = e.getIntersection1().getNodeID();
+        int b = e.getIntersection2().getNodeID();
+        if (a == 0 || b == 0) {
+            board.buildRoad(player, e);
+            neighbourId = (a == 0) ? b : a;
+            break;
         }
-        throw new IllegalStateException("no edge found adjacent to node " + nodeId);
     }
-
-    // full setup for a BuildSettlement test:
-    // puts a settlement at node 0, plants a road next to it so the road connection
-    // rule is satisfied, then gives the player settlement resources
-    // returns the neighbour node id that the command should target
-    private int setupSettlementScenario() {
-        placeInitialSettlement(0);
-        int neighbourId = plantRoadAdjacentTo(0);
-        giveSettlementResources();
-        return neighbourId;
-    }
+    giveSettlementResources();
+    return neighbourId;
+}
 
     // full setup for a BuildRoad test:
     // puts a settlement at node 0 so the edge is connected to a player piece,
