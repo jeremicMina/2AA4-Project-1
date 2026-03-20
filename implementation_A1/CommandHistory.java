@@ -1,5 +1,6 @@
+import java.util.ArrayDeque;
 import java.util.Stack;
-
+import java.util.Deque;
 /**
  * CommandHistory manages the undo and redo stacks for R3.1
  *
@@ -14,10 +15,10 @@ import java.util.Stack;
 public class CommandHistory {
 
     // stack of commands that was executed, top is most recent
-    private final Stack<Command> undoStack = new Stack<>();
+    private final Deque<Command> undoStack = new ArrayDeque<>();
 
     // stack of commands that were undone, top is most recently undone
-    private final Stack<Command> redoStack = new Stack<>();
+    private final Deque<Command> redoStack = new ArrayDeque<>();
 
     /**
      * executes a command and pushes it onto the undo stack
